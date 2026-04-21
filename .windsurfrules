@@ -1,1 +1,26 @@
-/mnt/d/大创聂泽铠/.windsurfrules
+# 影刃卫士项目 - Windsurf工作区规则
+# 此文件由Windsurf自动加载，不消耗对话token
+
+## 项目信息
+- 项目名: 影刃卫士 (ShadowBlade Guardian)
+- 类型: 大创申报项目 (AI Agent供应链安全审计系统)
+- 团队: 3人，网络安全专业，大模型零基础
+- 硬件: 3x 笔记本 NVIDIA 4060 8GB，WSL2+Ubuntu 22.04
+
+## 当前文档版本
+- 使用v2版文档（_v2.md后缀），v1已弃用
+- 详细项目记忆见 PROJECT_CONTEXT.md
+
+## 技术栈
+- Python 3.11, FastAPI, Streamlit
+- Qwen3-4B AWQ 4-bit量化 (vLLM推理)
+- 静态: Semgrep + Bandit + pip-audit + LLM Guard
+- 动态: Docker沙箱 + mitmproxy + watchdog + 蜜罐
+- AI研判: ChromaDB + BGE-small + Qwen3-4B RAG
+- 审计对象: OpenClaw ClawHub 13,000+技能
+
+## 编码规范
+- 类型注解，Pydantic数据模型
+- 代码必须有中文注释（团队零基础）
+- 优先复用成熟开源工具，不从零造轮子
+- LoRA微调为可选增强，优先Prompt Engineering + RAG
