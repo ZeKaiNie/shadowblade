@@ -1,0 +1,128 @@
+# =============================================
+# 影刃卫士 ShadowBlade Guardian - 全局配置
+# =============================================
+
+# ----- 项目基本信息 -----
+project:
+  name: "ShadowBlade Guardian"
+  version: "0.1.0"
+  log_level: "INFO"             # DEBUG / INFO / WARNING / ERROR
+  log_dir: "logs"
+
+# ----- Qwen3-4B 模型服务 -----
+llm:
+  model_path: "models/qwen3-4b-awq"           # 本地模型路径
+  model_name: "Qwen/Qwen3-4B-AWQ"             # HuggingFace模型ID（用于下载）
+  vllm_host: "127.0.0.1"
+  vllm_port: 8000
+  vllm_api_base: "http://127.0.0.1:8000/v1"   # OpenAI兼容API地址
+  max_tokens: 2048
+  temperature: 0.3                              # 审计任务用低温度，减少幻觉
+  gpu_memory_utilization: 0.85                  # vLLM显存占比（4060 8GB留一点余量）
+  quantization: "awq"
+
+# ----- RAG 配置 -----
+rag:
+  embedding_model: "BAAI/bge-small-zh-v1.5"   # 嵌入模型（CPU运行，不占GPU）
+  chroma_persist_dir: "data/chromadb"          # ChromaDB持久化目录
+  collection_name: "shadowblade_knowledge"
+  chunk_size: 512                               # 文本分块大小（字符数）
+  chunk_overlap: 64
+  top_k: 5                                      # 检索返回Top-K个相关片段
+
+# ----- 静态审计引擎 -----
+static_engine:
+  # L1: Semgrep
+  semgrep:
+    rules_dir: "config/semgrep_rules"
+    timeout_seconds: 120
+
+  # L2: Bandit
+  bandit:
+    severity_threshold: "medium"               # low / medium / high
+    confidence_threshold: "medium"
+
+  # L3: pip-audit
+  pip_audit:
+    timeout_seconds: 60
+
+  # L4: LLM Guard（提示词注入检测）
+  llm_guard:
+    enabled: true
+    scanners:                                   # 启用的扫描器
+      - "PromptInjection"
+      - "TokenLimit"
+      - "BanTopics"
+
+  # L5: LLM语义审查（Qwen3-4B）
+  llm_review:
+    enabled: true
+    max_code_length: 8000                       # 单次送审的最大代码字符数
+
+# ----- 动态审计引擎 -----
+dynamic_engine:
+  # Docker沙箱
+  sandbox:
+    image: "shadowblade-sandbox:latest"
+    timeout_seconds: 300                        # 单个技能最大执行时间
+    memory_limit: "512m"
+    cpu_limit: 1.0
+    network_mode: "shadowblade_net"             # 自定义Docker网络（流量经mitmproxy）
+
+  # mitmproxy 网络捕获
+  mitmproxy:
+    listen_port: 8080
+    web_port: 8081                              # mitmproxy Web UI端口
+
+  # watchdog 文件监控
+  watchdog:
+    monitor_paths:                              # 沙箱内监控的敏感路径
+      - "/etc/passwd"
+      - "/etc/shadow"
+      - "/root/.ssh"
+      - "/tmp"
+
+  # 蜜罐诱饵
+  honeypot:
+    enabled: true
+    fake_env_vars:                              # 注入的假环境变量（检测数据窃取行为）
+      - "OPENAI_API_KEY=sk-honeypot-fake-key-do-not-use"
+      - "AWS_SECRET_ACCESS_KEY=honeypot-fake-aws-secret"
+      - "DATABASE_URL=postgresql://honeypot:fake@10.0.0.99/trapdb"
+    fake_files:                                 # 注入的假文件
+      - path: "/root/.ssh/id_rsa"
+        content: "HONEYPOT_MARKER_SSH_KEY"
+      - path: "/root/.env"
+        content: "SECRET_TOKEN=honeypot_trap_token_12345"
+
+# ----- AI研判引擎 -----
+ai_engine:
+  trust_score:
+    weights:                                    # 各引擎权重（总和=1.0）
+      static: 0.35
+      dynamic: 0.35
+      llm_review: 0.30
+    risk_thresholds:                            # 信任评分阈值
+      safe: 80                                  # ≥80分: 安全
+      suspicious: 50                            # 50-79分: 可疑
+      malicious: 0                              # <50分: 恶意
+
+# ----- 数据接入 -----
+data_ingestion:
+  clawhub:
+    base_url: "https://clawhub.ai"
+    api_base: "https://api.clawhub.ai"
+    clone_dir: "data/clawhub_skills"
+    max_concurrent: 5                           # 并发爬取数
+    rate_limit_delay: 1.0                       # 请求间隔（秒），避免被ban
+
+# ----- FastAPI 后端 -----
+api:
+  host: "0.0.0.0"
+  port: 8888
+  reload: true                                  # 开发模式热重载
+
+# ----- Streamlit 仪表盘 -----
+dashboard:
+  host: "0.0.0.0"
+  port: 8501

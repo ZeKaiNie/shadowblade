@@ -1,0 +1,47 @@
+# =============================================
+# 影刃卫士 ShadowBlade Guardian - 依赖清单
+# Python 3.12 / WSL2 Ubuntu / NVIDIA 4060 8GB
+# =============================================
+
+# ----- 模型推理 -----
+vllm>=0.8.0                  # Qwen3-4B AWQ推理引擎（自带OpenAI兼容API）
+transformers>=4.46.0         # HuggingFace模型加载
+autoawq>=0.2.7               # AWQ量化支持
+
+# ----- RAG + 向量数据库 -----
+chromadb>=0.5.0              # 本地向量数据库
+sentence-transformers>=3.0.0 # BGE-small嵌入模型加载
+
+# ----- 后端框架 -----
+fastapi>=0.115.0             # API后端
+uvicorn[standard]>=0.30.0    # ASGI服务器
+pydantic>=2.9.0              # 数据模型
+pydantic-settings>=2.5.0    # 配置管理（从yaml/env加载）
+
+# ----- 前端仪表盘 -----
+streamlit>=1.38.0            # 可视化仪表盘
+plotly>=5.24.0               # 交互式图表
+
+# ----- 静态审计工具（通过pip安装的部分） -----
+bandit>=1.7.9                # Python代码安全检查
+pip-audit>=2.7.0             # 依赖漏洞扫描
+# semgrep 通过 pip install semgrep 安装，但体积较大，单独装
+# llm-guard 通过 pip install llm-guard 安装，依赖较多，单独装
+
+# ----- 动态审计工具 -----
+mitmproxy>=10.4.0            # HTTP(S)透明代理抓包
+watchdog>=4.0.0              # 文件系统事件监控
+docker>=7.1.0                # Docker Python SDK（管理沙箱容器）
+
+# ----- 数据处理 -----
+pyyaml>=6.0.2                # YAML解析（配置文件+SKILL.md）
+httpx>=0.27.0                # 异步HTTP客户端（爬虫+API调用）
+beautifulsoup4>=4.12.0       # HTML解析（ClawHub页面爬取）
+markdown>=3.7                # Markdown解析（SKILL.md）
+gitpython>=3.1.43            # Git操作（克隆ClawHub仓库）
+
+# ----- 开发工具 -----
+pytest>=8.3.0                # 测试框架
+ruff>=0.6.0                  # 代码格式化+Lint
+ipython>=8.27.0              # 交互式调试
+rich>=13.8.0                 # 终端美化输出（日志+进度条）

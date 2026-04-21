@@ -1,0 +1,46 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# ===== 虚拟环境 =====
+.venv/
+venv/
+env/
+
+# ===== 模型文件（太大，不上传） =====
+models/qwen3-4b-awq/*.safetensors
+models/qwen3-4b-awq/*.bin
+models/qwen3-4b-awq/*.pt
+
+# ===== 数据集（太大，不上传） =====
+data/malicious/
+data/benign/
+data/clawhub_skills/
+data/chromadb/
+
+# ===== 日志 =====
+logs/
+*.log
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+
+# ===== Docker =====
+sandbox/*.tar
+
+# ===== 敏感信息 =====
+.env
+*.key
