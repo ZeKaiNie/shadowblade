@@ -1,13 +1,13 @@
 # 影刃卫士 - 项目上下文记忆文件
 
 > **用途**：换账号/换AI工具时，将本文件内容粘贴给AI即可恢复完整项目上下文。
-> **最后更新**：2026-04-21 20:10
+> **最后更新**：2026-04-22 12:40（v3架构升级）
 
 ---
 
 ## 项目一句话
 
-"影刃卫士"(ShadowBlade Guardian)——基于Qwen3-4B的AI Agent"影子技能"供应链静动态审计探针系统，以OpenClaw/ClawHub真实技能生态为审计对象。四川轻化工大学大创申报项目，校级/省级。
+"影刃卫士"(ShadowBlade Guardian)——面向OWASP Agentic Skills Top 10风险的LLM Agent自主安全审计系统，融合SKILL.md语义分析+动态蜜罐诱捕+多源证据信任评分，以ClawHub真实攻击事件（ClawHavoc 1,184恶意技能）为验证场景。四川轻化工大学大创申报项目，校级/省级。
 
 ## 团队
 
@@ -53,41 +53,87 @@ D:\大创聂泽铠\                            ← Windows D盘，存文档（Wi
 Windsurf打开WSL2工作区方法: File → Open Folder → \\wsl$\Ubuntu\home\niezekai\shadowblade
 ```
 
-## 核心架构（v2.1，含Agent升级路径）
+## 核心架构（v3，对齐OWASP AST10 + ClawHavoc实战验证）
+
+> **v3 升级背景**（2026-04-22）：
+> - 2026.01 ClawHavoc攻击爆发，1,184个恶意技能投毒ClawHub，攻击手段包括SKILL.md自然语言注入、SOUL.md持久化后门、Memory投毒、WebSocket C2
+> - 2026.02 Snyk发布ToxicSkills报告：36%技能有安全缺陷，模式匹配扫描器无法检测大多数威胁（验证了LLM语义分析路线）
+> - 2026.02 OWASP发布Agentic Skills Top 10(AST10)，第一个专门针对技能安全的风险标准
+> - 2026.04 微软发布Agent Governance Toolkit（运行时治理框架，非检测系统）
+> - 2025.12 OWASP发布Agentic AI Top 10，ICLR 2025接收Agent Security Bench(ASB)
 
 ```
-审计对象: OpenClaw ClawHub 13,000+ 真实技能（Hermes Agent等也共享此生态）
+审计对象: ClawHub技能（SKILL.md + 代码文件 + 依赖 + 元数据）
     ↓
-数据接入层: ClawHub爬取 / Git监控 / API提交 / SKILL.md解析
+数据接入层: ClawHub爬取 / Git监控 / SKILL.md+SOUL.md+MEMORY.md解析
     ↓
-┌─────────────────────────┬──────────────────────────┐
-│ 静态审计引擎（工具函数）    │ 动态审计引擎（工具函数）     │
-│ L1: Semgrep自定义规则扫描  │ Docker沙箱隔离执行         │
-│ L2: Bandit Python安全检查  │ mitmproxy HTTP(S)流量捕获  │
-│ L3: pip-audit 依赖漏洞    │ watchdog 文件访问监控       │
-│ L4: LLM Guard PI载荷检测  │ 蜜罐(Honeypot)诱饵数据注入  │
-│ L5: Qwen3-4B 语义代码审查  │ 行为异常检测               │
-├─────────────────────────┴──────────────────────────┤
-│ AI研判决策引擎（两阶段演进）                            │
-│                                                      │
-│ 阶段1(M1-M4): 固定流水线 pipeline.py                  │
-│   → 写死调用顺序: L1→L2→L3→L4→L5→动态→融合→评分       │
-│                                                      │
-│ 阶段2(M5+):  ReAct Agent 模式 agent.py  ★论文核心     │
-│   → LLM自主决定: 看初步结果→选择下一个工具→迭代推理     │
-│   → 底层工具函数与阶段1完全共用，只改顶层调度            │
-│   → 论文实验: pipeline vs agent 对比，量化检出率提升     │
-├────────────────────────────────────────────────────┤
-│ 模型服务: vLLM(Qwen3-4B-AWQ) + ChromaDB + BGE-small  │
-├────────────────────────────────────────────────────┤
-│ 可视化: Streamlit 仪表盘                              │
-└────────────────────────────────────────────────────┘
+┌──────────────────────────────┬──────────────────────────────┐
+│ 静态审计引擎                    │ 动态审计引擎                    │
+│                                │                                │
+│ S1: SKILL.md语义分析 ★核心新增  │ D1: Docker沙箱隔离执行          │
+│   → LLM检测自然语言恶意指令     │ D2: mitmproxy HTTP(S)流量捕获   │
+│   → 覆盖ClawHavoc主要攻击面     │   → WebSocket C2连接检测 ★新增  │
+│                                │ D3: watchdog 文件系统监控        │
+│ S2: Semgrep自定义规则扫描       │   → 身份文件保护 ★新增          │
+│   → 代码层恶意模式匹配          │   （SOUL.md/MEMORY.md写入告警）  │
+│                                │ D4: 蜜罐(Honeypot)诱饵数据注入   │
+│ S3: Bandit Python安全检查       │   → 假凭据+假文件+假API Key     │
+│                                │ D5: 行为异常检测                 │
+│ S4: 依赖安全扫描                │   → 网络外联、Shell调用、        │
+│   → pip-audit CVE漏洞          │     敏感路径访问模式分析          │
+│   → typosquatting检测 ★新增    │                                │
+│   （依赖混淆/名称相似度比对）    │                                │
+│                                │                                │
+│ S5: LLM Guard PI载荷检测       │                                │
+│                                │                                │
+│ S6: 权限清单验证 ★新增         │                                │
+│   → 声明权限 vs 实际行为对比    │                                │
+├──────────────────────────────┴──────────────────────────────┤
+│ AI研判决策引擎（两阶段演进）                                     │
+│                                                               │
+│ 阶段1(M1-M4): 固定流水线 pipeline.py                           │
+│   → 写死调用顺序: S1→S2→S3→S4→S5→S6→D1~D5→融合→评分          │
+│                                                               │
+│ 阶段2(M5+):  ReAct Agent 模式 agent.py  ★论文核心              │
+│   → LLM自主决定: 看初步结果→选择下一个工具→迭代推理              │
+│   → 底层工具函数与阶段1完全共用，只改顶层调度                     │
+│   → 论文实验: pipeline vs agent 对比，量化检出率提升              │
+├───────────────────────────────────────────────────────────────┤
+│ 模型服务: vLLM(Qwen3-4B-AWQ) + ChromaDB + BGE-small            │
+├───────────────────────────────────────────────────────────────┤
+│ 可视化: Streamlit 仪表盘                                        │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-### 论文三大创新点（SCI Q2 / CCF-C~B 目标）
-1. **Agent-as-Auditor**: LLM Agent自主编排安全审计工具链（ReAct模式），非固定流水线
-2. **蜜罐诱捕检测**: 注入假凭据/假文件到沙箱，通过监控泄露行为检测数据窃密（T2威胁）
-3. **多源证据融合信任评分**: 静态+动态+LLM三引擎结果的可解释融合评分模型
+### v3 相比 v2 新增/改动汇总
+
+| 变更 | 说明 | 对应OWASP AST |
+|------|------|--------------|
+| ★ S1: SKILL.md语义分析 | LLM检测SKILL.md中自然语言恶意指令（ClawHavoc主攻手段） | AST01 |
+| ★ S4: typosquatting检测 | 依赖名相似度比对，防依赖混淆 | AST02, AST07 |
+| ★ S6: 权限清单验证 | 声明权限vs实际行为是否一致 | AST03 |
+| ★ D2: WebSocket C2检测 | mitmproxy检测持久WebSocket外联（ClawHavoc C2通信方式） | AST01 |
+| ★ D3: 身份文件保护 | 监控SOUL.md/MEMORY.md/AGENTS.md写入 | AST01, AST08 |
+| 威胁模型对齐OWASP AST10 | 替换自定义T1-T6 | 全部 |
+| 论文引用真实攻击事件 | ClawHavoc + ToxicSkills + CVE数据 | — |
+
+### 论文四大创新点（SCI Q2 / CCF-C~B 目标）
+1. **SKILL.md语义分析**: 用LLM检测自然语言层恶意指令，突破传统模式匹配扫描器的盲区（Snyk已证明模式匹配失效）
+2. **Agent-as-Auditor**: LLM Agent自主编排多层安全审计工具链（ReAct模式），非固定流水线
+3. **蜜罐诱捕检测**: 注入假凭据/假文件到沙箱，通过监控泄露行为检测数据窃密（AST01/AST06）
+4. **多源证据融合信任评分**: 静态+动态+LLM多层结果的可解释融合评分模型，映射OWASP AST10风险类别
+
+### 差异化定位（vs 同期竞品）
+
+| | Snyk ToxicSkills | 微软Agent Governance Toolkit | **影刃卫士** |
+|--|--|--|--|
+| 性质 | 一次性审计报告 | 运行时治理框架（策略引擎） | **自动化检测+研判系统** |
+| SKILL.md语义分析 | 有限（人工为主） | ❌ | ✅ LLM自动化 |
+| 代码层扫描 | ✅ | ❌ | ✅ Semgrep+Bandit |
+| 动态沙箱 | ❌ | ❌ | ✅ Docker+mitmproxy |
+| 蜜罐诱捕 | ❌ | ❌ | ✅ 假凭据注入 |
+| Agent自主推理 | ❌ | ❌ | ✅ ReAct模式 |
+| 可在消费级GPU运行 | N/A | N/A | ✅ 4060 8GB |
 
 ## 技术栈完整列表
 
@@ -126,57 +172,87 @@ PI检测:        LLM Guard (ProtectAI)
 | AI研判调度 | M5升级为ReAct Agent模式 | 一开始就做Agent | 需要先有底层工具函数才能让Agent编排 |
 | 论文目标 | 冲SCI Q2 / CCF-C~B | 只发中文核心 | 选题新+Agent模式+蜜罐+信任评分=足够创新点 |
 
-## 威胁模型（T1-T6）
+## 威胁模型（对齐 OWASP Agentic Skills Top 10）
 
-- T1-供应链投毒：恶意代码注入正常技能
-- T2-数据窃密：窃取Agent上下文敏感数据
-- T3-提示词注入载荷：返回值中嵌入恶意Prompt
-- T4-权限越级：请求超出声明范围的权限
-- T5-触发式后门：条件触发恶意逻辑（如特定日期激活）
-- T6-依赖链攻击：上游依赖含恶意代码（typosquatting等）
+> 替换了v2自定义T1-T6，改用国际标准框架。标注★的为本系统重点覆盖项。
+
+| OWASP AST | 风险名称 | 说明 | 本系统覆盖 |
+|-----------|---------|------|-----------|
+| AST01 ★ | 恶意技能 | SKILL.md自然语言注入+代码层恶意载荷+SOUL.md持久化后门 | S1+S2+D3+D4 |
+| AST02 ★ | 供应链攻陷 | 注册表投毒、依赖混淆、maintainer账号接管 | S4(typosquatting) |
+| AST03 ★ | 过度授权技能 | 技能请求超出实际需要的权限 | S6(权限清单验证) |
+| AST04 | 不安全元数据 | 品牌冒充、误导性描述 | S1(语义分析可检测) |
+| AST05 | 不安全反序列化 | YAML/JSON配置文件利用 | S2(Semgrep规则) |
+| AST06 ★ | 弱隔离 | 技能在宿主Agent同权限执行，无沙箱 | D1(Docker沙箱) |
+| AST07 ★ | 依赖问题 | 嵌套依赖中隐藏恶意代码 | S4(pip-audit+相似度) |
+| AST08 | 缺乏溯源 | 无签名、无扫描记录 | (记录审计结果) |
+| AST09 | 缺乏治理 | 无权限审查流程 | S6+信任评分 |
+| AST10 | 缺乏风险分级 | 无自动化风险分层 | 信任评分+risk_tier |
+
+### ClawHavoc 真实攻击案例（2026.01-02，论文Motivation核心素材）
+
+- **规模**: 1,184个恶意技能，12个发布者账号，3天内首批341个上线
+- **攻击手法**:
+  - SKILL.md中用自然语言指示Agent读取SSH密钥并外传（3行markdown即可）
+  - 代码层投递AMOS窃密木马（针对macOS加密钱包、浏览器密码）
+  - 向SOUL.md/MEMORY.md写入后门指令，实现技能卸载后仍持久化
+  - WebSocket长连接到C2服务器(91.92.242[.]30)实现远程控制
+  - 品牌冒充（伪装Google、Solana、YouTube等热门技能名）
+- **影响**: 高峰期ClawHub下载量Top7技能中5个是恶意软件，约300,000用户受影响
+- **关键引用**: Koi Security(首次披露), Snyk ToxicSkills, Antiy CERT, Trend Micro, OWASP AST10
 
 ## 数据集来源（几乎全部现成）
 
 | 用途 | 来源 | 说明 |
 |------|------|------|
 | 恶意样本 | Datadog malicious-software-packages-dataset | 22K+样本，含AI Skills类别，git clone即用 |
+| 恶意样本★ | ClawHavoc真实样本(Koi Security/Antiy CERT披露) | 1,184个真实恶意技能的IOC和分析报告 |
+| 恶意样本★ | Snyk ToxicSkills披露的76个恶意载荷 | 有确认的恶意SKILL.md样本 |
 | 恶意补充 | Backstabbers-Knife-Collection, PyPI恶意包注册表 | GitHub下载 |
 | 良性样本 | ClawHub直接爬取 | 一个爬虫脚本搞定 |
 | RAG知识库 | NVD CVE JSON + MITRE CWE XML | 免费公开下载 |
+| RAG知识库★ | OWASP AST10 + Agentic AI Top 10 | 技能安全风险标准文档 |
 | LoRA标注 | GPT-4o/Claude API批量生成 | 对现成样本自动标注审计结论 |
-| 漏洞检测基准 | PrimeVul (ICSE 2025) | 可选参考 |
+| 评估基准★ | Agent Security Bench (ASB, ICLR 2025) | Agent安全学术基准，可做对比实验 |
 
-## 自主开发代码量约1,400行
+## 自主开发代码量约1,800行（v3更新）
 
-| 模块 | 类型 | 估计行数 |
-|------|------|---------|
-| LLM语义审计 | ★核心创新 | ~200行 |
-| 蜜罐机制 | ★核心创新 | ~200行 |
-| AI综合研判+信任评分 | ★核心创新 | ~300行 |
-| Semgrep/Bandit/LLM Guard/pip-audit调用 | 胶水代码 | ~150行 |
-| mitmproxy插件+watchdog监控 | 胶水代码 | ~140行 |
-| ClawHub爬虫+SKILL.md解析 | 工具脚本 | ~100行 |
-| Docker沙箱管理 | 集成代码 | ~150行 |
-| Streamlit仪表盘 | 前端 | ~200行 |
+| 模块 | 类型 | 估计行数 | v3变更 |
+|------|------|---------|--------|
+| S1: SKILL.md语义分析 | ★核心创新 | ~250行 | **新增** |
+| S6: 权限清单验证 | ★核心创新 | ~100行 | **新增** |
+| S4: typosquatting检测 | ★核心创新 | ~80行 | **新增** |
+| LLM语义代码审查 | ★核心创新 | ~200行 | 不变 |
+| 蜜罐机制+身份文件保护 | ★核心创新 | ~220行 | 扩展 |
+| AI综合研判+信任评分(含AST映射) | ★核心创新 | ~300行 | 扩展 |
+| ReAct Agent调度(M5) | ★核心创新 | ~150行 | 不变 |
+| Semgrep/Bandit/LLM Guard/pip-audit调用 | 胶水代码 | ~150行 | 不变 |
+| mitmproxy插件+watchdog+WebSocket检测 | 胶水代码 | ~160行 | 扩展 |
+| ClawHub爬虫+SKILL.md/SOUL.md/MEMORY.md解析 | 工具脚本 | ~120行 | 扩展 |
+| Docker沙箱管理 | 集成代码 | ~150行 | 不变 |
+| Streamlit仪表盘 | 前端 | ~200行 | 不变 |
 
-## 量化指标目标
+## 量化指标目标（v3更新）
 
+- SKILL.md恶意指令检测率 ≥ 90%（★v3新增，核心指标）
 - 静态检出率 ≥ 85%，误报率 ≤ 15%
 - 动态识别率 ≥ 75%
 - 联合检出率 ≥ 92%
+- OWASP AST10覆盖度 ≥ 7/10（★v3新增）
 - 单技能审计 ≤ 5分钟
 - 批量验证 ≥ 1,000个ClawHub真实技能
+- ClawHavoc样本回测检出率（★v3新增，用真实攻击验证）
 - 系统可在单卡4060 8GB稳定运行
 
 ## 里程碑
 
 - M1(W2): Qwen3-4B推理跑通 + Semgrep/Bandit/LLM Guard/mitmproxy/Docker全部安装验证
-- M2(W4): 威胁模型白皮书 + 从Datadog数据集筛选样本 + Semgrep规则集v0.1(20+条)
-- M3(W6): 静态引擎四层流水线v1.0可独立运行
-- M4(W8): 动态引擎v1.0(Docker+mitmproxy+蜜罐)
-- M5(W10): 三引擎联调，端到端pipeline跑通
-- M6(W12): Streamlit仪表盘 + ClawHub 1000+技能批量审计
-- M7(W20): 论文初稿
+- M2(W4): OWASP AST10对齐的威胁模型 + ClawHavoc/Datadog数据集收集 + Semgrep规则集v0.1(20+条)
+- M3(W6): 静态引擎v1.0（S1 SKILL.md语义分析 + S2-S6全链路可独立运行）
+- M4(W8): 动态引擎v1.0(Docker+mitmproxy+蜜罐+身份文件保护+WebSocket检测)
+- M5(W10): 三引擎联调 + ReAct Agent模式 + pipeline vs agent对比实验
+- M6(W12): Streamlit仪表盘 + ClawHub 1000+技能批量审计 + ClawHavoc样本回测
+- M7(W20): 论文初稿（面向SCI Q2 / CCF-C~B）
 - M8(W32): 结题（论文投稿+软著+答辩）
 
 ## 预算
@@ -243,6 +319,23 @@ PI检测:        LLM Guard (ProtectAI)
 8. ✅ 创建 `README.md` — 项目说明文档
 
 9. ✅ 初始化Git仓库（main分支），完成首次commit
+
+### 2026-04-22 — 架构升级 v2→v3（OWASP AST10对齐）
+
+**已完成：**
+1. ✅ 调研最新开源动态：OWASP AST10、微软Agent Governance Toolkit、Snyk ToxicSkills、ClawHavoc攻击事件、ASB(ICLR 2025)
+2. ✅ 项目定位升级：从"供应链审计系统"升级为"面向OWASP AST10的LLM Agent自主审计系统"
+3. ✅ 架构升级v3，新增5个关键能力：
+   - S1: SKILL.md语义分析（LLM检测自然语言恶意指令，覆盖ClawHavoc主攻手段）
+   - S4: typosquatting检测（依赖名相似度比对，防依赖混淆攻击）
+   - S6: 权限清单验证（声明权限vs实际行为对比）
+   - D2扩展: WebSocket C2连接检测
+   - D3扩展: SOUL.md/MEMORY.md身份文件写入保护
+4. ✅ 威胁模型从自定义T1-T6替换为OWASP AST10标准框架
+5. ✅ 新增ClawHavoc真实攻击案例作为论文Motivation核心素材
+6. ✅ 数据集新增ClawHavoc样本、ToxicSkills样本、OWASP AST10知识库、ASB基准
+7. ✅ 论文创新点从3个扩展为4个（新增SKILL.md语义分析）
+8. ✅ 明确差异化定位（vs Snyk ToxicSkills / 微软Governance Toolkit）
 
 **下一步（待做）：**
 - [ ] 创建Python虚拟环境 (.venv) 并安装基础依赖
