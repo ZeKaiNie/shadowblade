@@ -99,7 +99,15 @@ Windsurf打开WSL2工作区方法: File → Open Folder → \\wsl$\Ubuntu\home\n
 │   → 底层工具函数与阶段1完全共用，只改顶层调度                     │
 │   → 论文实验: pipeline vs agent 对比，量化检出率提升              │
 ├───────────────────────────────────────────────────────────────┤
-│ 模型服务: vLLM(Qwen3-4B-AWQ) + ChromaDB + BGE-small            │
+│ 模型服务（可插拔，通过LiteLLM统一接口）                            │
+│                                                               │
+│ ┌─本地─────────────┐  ┌─云端API──────────────┐                │
+│ │ vLLM(Qwen3-4B-AWQ)│  │ OpenAI GPT-4o        │                │
+│ │ ★默认，免费离线   │  │ Anthropic Claude     │                │
+│ └──────────────────┘  │ 其他OpenAI兼容模型    │                │
+│                        └─────────────────────┘                │
+│ 统一调用: LiteLLM → 一行配置切换，代码不用改                     │
+│ RAG: ChromaDB + BGE-small（不受模型切换影响）                    │
 ├───────────────────────────────────────────────────────────────┤
 │ 可视化: Streamlit 仪表盘                                        │
 └───────────────────────────────────────────────────────────────┘
@@ -116,12 +124,14 @@ Windsurf打开WSL2工作区方法: File → Open Folder → \\wsl$\Ubuntu\home\n
 | ★ D3: 身份文件保护 | 监控SOUL.md/MEMORY.md/AGENTS.md写入 | AST01, AST08 |
 | 威胁模型对齐OWASP AST10 | 替换自定义T1-T6 | 全部 |
 | 论文引用真实攻击事件 | ClawHavoc + ToxicSkills + CVE数据 | — |
+| ★ 模型可插拔设计 | LiteLLM统一接口，支持本地/云端多模型切换+对比实验 | — |
 
-### 论文四大创新点（SCI Q2 / CCF-C~B 目标）
+### 论文五大创新点（SCI Q2 / CCF-C~B 目标）
 1. **SKILL.md语义分析**: 用LLM检测自然语言层恶意指令，突破传统模式匹配扫描器的盲区（Snyk已证明模式匹配失效）
 2. **Agent-as-Auditor**: LLM Agent自主编排多层安全审计工具链（ReAct模式），非固定流水线
 3. **蜜罐诱捕检测**: 注入假凭据/假文件到沙箱，通过监控泄露行为检测数据窃密（AST01/AST06）
 4. **多源证据融合信任评分**: 静态+动态+LLM多层结果的可解释融合评分模型，映射OWASP AST10风险类别
+5. **模型可插拔+多维对比实验**: 框架不绑定特定LLM，通过LiteLLM统一接口支持本地(Qwen3-4B)/云端(GPT-4o/Claude)切换，论文提供三组对比：pipeline vs agent、小模型 vs 大模型、本地 vs 云端
 
 ### 差异化定位（vs 同期竞品）
 
@@ -133,14 +143,17 @@ Windsurf打开WSL2工作区方法: File → Open Folder → \\wsl$\Ubuntu\home\n
 | 动态沙箱 | ❌ | ❌ | ✅ Docker+mitmproxy |
 | 蜜罐诱捕 | ❌ | ❌ | ✅ 假凭据注入 |
 | Agent自主推理 | ❌ | ❌ | ✅ ReAct模式 |
+| 模型可插拔 | N/A | N/A | ✅ LiteLLM统一接口 |
 | 可在消费级GPU运行 | N/A | N/A | ✅ 4060 8GB |
 
 ## 技术栈完整列表
 
 ```
 语言:        Python 3.12 (WSL2内)
-模型:        Qwen3-4B AWQ 4-bit量化 (~3-4GB显存)
+模型(默认):  Qwen3-4B AWQ 4-bit量化 (~3-4GB显存)
 推理框架:    vLLM (OpenAI兼容API, localhost:8000)
+模型网关:    LiteLLM (统一接口，一行配置切换本地/云端模型)
+云端可选:    OpenAI GPT-4o / Anthropic Claude（对比实验用，需API Key）
 微调(可选):  LoRA via Unsloth (rank=16, alpha=32)
 向量数据库:  ChromaDB (本地持久化)
 嵌入模型:    BGE-small-zh-v1.5 (CPU运行,不占GPU)
@@ -170,7 +183,8 @@ PI检测:        LLM Guard (ProtectAI)
 | 文件监控 | watchdog | strace | Python库，轻量，跨平台 |
 | LoRA微调 | 可选增强 | 必做 | PE+RAG优先，效果不够再微调 |
 | AI研判调度 | M5升级为ReAct Agent模式 | 一开始就做Agent | 需要先有底层工具函数才能让Agent编排 |
-| 论文目标 | 冲SCI Q2 / CCF-C~B | 只发中文核心 | 选题新+Agent模式+蜜罐+信任评分=足够创新点 |
+| 模型网关 | LiteLLM统一接口(M3+加入) | 写死vLLM调用 | 一行配置切模型，论文多3组对比实验 |
+| 论文目标 | 冲SCI Q2 / CCF-C~B | 只发中文核心 | 选题新+5个创新点=足够支撑 |
 
 ## 威胁模型（对齐 OWASP Agentic Skills Top 10）
 
