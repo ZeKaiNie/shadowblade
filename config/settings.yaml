@@ -30,70 +30,134 @@ rag:
   chunk_overlap: 64
   top_k: 5                                      # 检索返回Top-K个相关片段
 
-# ----- 静态审计引擎 -----
+# ----- 静态审计引擎（v3，对齐OWASP AST10） -----
 static_engine:
-  # L1: Semgrep
+  # S1: SKILL.md语义分析 ★v3核心新增（AST01）
+  skill_semantic:
+    enabled: true
+    max_skill_md_length: 12000                  # SKILL.md最大字符数（超长截断）
+    check_prerequisites: true                   # 重点检查prerequisites段落（ClawHavoc主攻手段）
+    detect_ascii_smuggling: true                # 检测不可见Unicode字符隐写（ToxicSkills攻击手法）
+    suspicious_patterns:                        # 触发LLM深度审查的关键词
+      - "curl"
+      - "wget"
+      - "bash -c"
+      - "base64"
+      - "ssh"
+      - "id_rsa"
+      - "webhook.site"
+      - "eval"
+
+  # S2: Semgrep自定义规则扫描（AST01/AST05）
   semgrep:
     rules_dir: "config/semgrep_rules"
     timeout_seconds: 120
 
-  # L2: Bandit
+  # S3: Bandit Python安全检查
   bandit:
     severity_threshold: "medium"               # low / medium / high
     confidence_threshold: "medium"
 
-  # L3: pip-audit
+  # S4: 依赖安全扫描（AST02/AST07）★v3扩展
   pip_audit:
     timeout_seconds: 60
+  typosquatting:                                # ★v3新增：依赖名混淆检测
+    enabled: true
+    similarity_threshold: 0.85                  # 编辑距离相似度阈值（0-1）
+    known_good_packages:                        # 常被冒充的正规包名
+      - "clawhub"
+      - "openclaw"
+      - "openai"
+      - "anthropic"
+      - "langchain"
+      - "chromadb"
 
-  # L4: LLM Guard（提示词注入检测）
+  # S5: LLM Guard提示词注入检测
   llm_guard:
     enabled: true
-    scanners:                                   # 启用的扫描器
+    scanners:
       - "PromptInjection"
       - "TokenLimit"
       - "BanTopics"
 
-  # L5: LLM语义审查（Qwen3-4B）
+  # S6: 权限清单验证 ★v3新增（AST03/AST09）
+  permission_audit:
+    enabled: true
+    # 声明权限（SKILL.md中声明的能力）vs 实际行为（代码/动态检测到的操作）
+    # 不匹配则报告为可疑
+    monitored_capabilities:
+      - "network_access"                        # 网络访问
+      - "file_system_write"                     # 文件系统写入
+      - "shell_execution"                       # Shell命令执行
+      - "credential_access"                     # 凭据访问
+      - "identity_file_modification"            # SOUL.md/MEMORY.md修改
+
+  # LLM语义代码审查（Qwen3-4B）
   llm_review:
     enabled: true
     max_code_length: 8000                       # 单次送审的最大代码字符数
 
 # ----- 动态审计引擎 -----
 dynamic_engine:
-  # Docker沙箱
+  # D1: Docker沙箱（AST06）
   sandbox:
     image: "shadowblade-sandbox:latest"
-    timeout_seconds: 300                        # 单个技能最大执行时间
+    timeout_seconds: 300                        # 单次执行最大时间
     memory_limit: "512m"
     cpu_limit: 1.0
     network_mode: "shadowblade_net"             # 自定义Docker网络（流量经mitmproxy）
+    # ★v3新增：多次执行策略（检测延迟激活恶意行为，ClawHavoc部分技能等24-48h才激活）
+    multi_run:
+      enabled: true
+      runs: 3                                   # 执行次数
+      interval_seconds: 10                      # 两次执行间隔（模拟时间流逝）
+      fake_time_offset_hours: 48                # 第3次执行时伪造时间偏移48h
 
-  # mitmproxy 网络捕获
+  # D2: mitmproxy 网络捕获 ★v3扩展（AST01）
   mitmproxy:
     listen_port: 8080
     web_port: 8081                              # mitmproxy Web UI端口
+    detect_websocket_c2: true                   # ★v3新增：WebSocket长连接C2检测
+    suspicious_domains:                         # 已知恶意C2域名/IP（ClawHavoc IOC）
+      - "91.92.242.30"
+      - "webhook.site"
+      - "glot.io"
 
-  # watchdog 文件监控
+  # D3: watchdog 文件监控 ★v3扩展（AST01/AST08）
   watchdog:
     monitor_paths:                              # 沙箱内监控的敏感路径
+      # --- 通用Linux敏感路径 ---
       - "/etc/passwd"
       - "/etc/shadow"
       - "/root/.ssh"
       - "/tmp"
+      # --- ClawHub/OpenClaw特有路径（ClawHavoc攻击目标） ---
+      - "~/.clawdbot/.env"                      # API Key存储（rankaj恶意技能窃取目标）
+      - "~/.openclaw/skills"                    # 技能安装目录
+      - "~/.config/openclaw"                    # OpenClaw配置目录
+    identity_files:                             # ★v3新增：身份文件保护（写入即告警）
+      - "SOUL.md"
+      - "MEMORY.md"
+      - "AGENTS.md"
 
-  # 蜜罐诱饵
+  # D4: 蜜罐诱饵（AST01/AST06）
   honeypot:
     enabled: true
-    fake_env_vars:                              # 注入的假环境变量（检测数据窃取行为）
+    fake_env_vars:                              # 注入的假环境变量
       - "OPENAI_API_KEY=sk-honeypot-fake-key-do-not-use"
       - "AWS_SECRET_ACCESS_KEY=honeypot-fake-aws-secret"
       - "DATABASE_URL=postgresql://honeypot:fake@10.0.0.99/trapdb"
+      - "ANTHROPIC_API_KEY=sk-ant-honeypot-fake-key"           # ★新增
     fake_files:                                 # 注入的假文件
       - path: "/root/.ssh/id_rsa"
         content: "HONEYPOT_MARKER_SSH_KEY"
       - path: "/root/.env"
         content: "SECRET_TOKEN=honeypot_trap_token_12345"
+      # --- ClawHub特有诱饵（ClawHavoc实际窃取目标） ---
+      - path: "~/.clawdbot/.env"                               # ★新增
+        content: "OPENCLAW_API_KEY=honeypot_claw_key_fake"
+      - path: "~/.config/openclaw/credentials.json"            # ★新增
+        content: '{"token": "honeypot_oauth_token_fake"}'
 
 # ----- AI研判引擎 -----
 ai_engine:
@@ -111,7 +175,9 @@ ai_engine:
 data_ingestion:
   clawhub:
     base_url: "https://clawhub.ai"
-    api_base: "https://api.clawhub.ai"
+    # 优先用clawhub CLI工具下载（ClawHub后端是Convex，非标准REST API）
+    use_cli: true                               # true=用clawhub CLI, false=HTTP爬虫
+    cli_command: "clawhub"                      # CLI可执行文件名
     clone_dir: "data/clawhub_skills"
     max_concurrent: 5                           # 并发爬取数
     rate_limit_delay: 1.0                       # 请求间隔（秒），避免被ban

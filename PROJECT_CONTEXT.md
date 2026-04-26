@@ -1,7 +1,7 @@
 # 影刃卫士 - 项目上下文记忆文件
 
 > **用途**：换账号/换AI工具时，将本文件内容粘贴给AI即可恢复完整项目上下文。
-> **最后更新**：2026-04-22 12:40（v3架构升级）
+> **最后更新**：2026-04-26 14:25（技术方案审查+配置修复）
 
 ---
 
@@ -337,13 +337,43 @@ PI检测:        LLM Guard (ProtectAI)
 7. ✅ 论文创新点从3个扩展为4个（新增SKILL.md语义分析）
 8. ✅ 明确差异化定位（vs Snyk ToxicSkills / 微软Governance Toolkit）
 
+### 2026-04-26 — 技术方案全面审查 + 配置修复
+
+**答辩已通过✅，正式进入开发阶段。**
+
+**审查发现并修复的问题：**
+1. ✅ watchdog监控路径补充ClawHub特有路径（~/.clawdbot/.env、~/.openclaw/skills等）
+2. ✅ 蜜罐诱饵补充ClawHub凭据文件（ClawHavoc实际窃取目标）
+3. ✅ settings.yaml层编号从L1-L5更新为S1-S6/D1-D4（对齐v3架构）
+4. ✅ 新增S1 SKILL.md语义分析配置（prerequisites检查+ASCII隐写检测）
+5. ✅ 新增S4 typosquatting检测配置（相似度阈值+常被冒充包名列表）
+6. ✅ 新增S6权限清单验证配置（5类能力监控）
+7. ✅ 沙箱新增多次执行策略（检测延迟激活恶意行为，伪造48h时间偏移）
+8. ✅ mitmproxy新增WebSocket C2检测+ClawHavoc IOC域名
+9. ✅ 数据接入改为优先使用clawhub CLI（后端是Convex不是标准REST）
+10. ✅ 生成可视化架构图 docs/architecture.html
+
+**⚠️ 关键数据发现（影响论文实验）：**
+- ClawHavoc原始恶意SKILL.md文件**已从ClawHub下架**，无法直接获取
+- 解决方案：基于公开攻击报告自己构造合成恶意样本（学术上可行）
+- Snyk toxicskills-goof仓库有4个真实恶意SKILL.md演示样本可用
+- BulwarkAI有完整IOC库（1184个技能名+哈希+C2地址），可能需注册获取
+- Datadog数据集是npm/PyPI恶意包，非ClawHub技能，但代码层分析可用
+
+**RAG方案确认：继续用ChromaDB+BGE-small（Hybrid混合方案）**
+- 核心知识（OWASP AST10规则等）直接写进System Prompt
+- 长尾知识（CVE/CWE/攻击报告）用RAG按需检索
+- LLM Wiki不适合本项目（知识量大+需要溯源引用）
+
 **下一步（待做）：**
+- [ ] ⚠️ 先解决WSL2网络问题（apt换清华镜像+DNS检查）
 - [ ] 创建Python虚拟环境 (.venv) 并安装基础依赖
 - [ ] 安装Semgrep和LLM Guard（体积大，单独安装）
 - [ ] 安装Docker（动态沙箱引擎需要）
 - [ ] 下载Qwen3-4B-AWQ模型到 models/qwen3-4b-awq/
 - [ ] 连接GitHub远程仓库（可选，需先在GitHub创建repo）
 - [ ] 开始M1里程碑：Qwen3-4B推理跑通 + 各工具安装验证
+- [ ] 构造合成恶意SKILL.md测试数据集（~50个样本）
 
 **当前工作区文件清单：**
 ```
@@ -356,7 +386,9 @@ PI检测:        LLM Guard (ProtectAI)
 ├── requirements.txt
 ├── config/
 │   ├── semgrep_rules/          （空，待填充规则）
-│   └── settings.yaml
+│   └── settings.yaml           ← v3更新完毕
+├── docs/
+│   └── architecture.html       ← 可视化架构图（浏览器打开）
 ├── src/
 │   ├── static_engine/          （空，待开发）
 │   ├── dynamic_engine/         （空，待开发）
