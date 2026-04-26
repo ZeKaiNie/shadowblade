@@ -1,7 +1,7 @@
 # 影刃卫士 - 项目上下文记忆文件
 
 > **用途**：换账号/换AI工具时，将本文件内容粘贴给AI即可恢复完整项目上下文。
-> **最后更新**：2026-04-26 14:25（技术方案审查+配置修复）
+> **最后更新**：2026-04-26 14:46（竞品审查+模型可插拔+项目定位明确）
 
 ---
 
@@ -133,18 +133,26 @@ Windsurf打开WSL2工作区方法: File → Open Folder → \\wsl$\Ubuntu\home\n
 4. **多源证据融合信任评分**: 静态+动态+LLM多层结果的可解释融合评分模型，映射OWASP AST10风险类别
 5. **模型可插拔+多维对比实验**: 框架不绑定特定LLM，通过LiteLLM统一接口支持本地(Qwen3-4B)/云端(GPT-4o/Claude)切换，论文提供三组对比：pipeline vs agent、小模型 vs 大模型、本地 vs 云端
 
-### 差异化定位（vs 同期竞品）
+### 项目定位
 
-| | Snyk ToxicSkills | 微软Agent Governance Toolkit | **影刃卫士** |
-|--|--|--|--|
-| 性质 | 一次性审计报告 | 运行时治理框架（策略引擎） | **自动化检测+研判系统** |
-| SKILL.md语义分析 | 有限（人工为主） | ❌ | ✅ LLM自动化 |
-| 代码层扫描 | ✅ | ❌ | ✅ Semgrep+Bandit |
-| 动态沙箱 | ❌ | ❌ | ✅ Docker+mitmproxy |
-| 蜜罐诱捕 | ❌ | ❌ | ✅ 假凭据注入 |
-| Agent自主推理 | ❌ | ❌ | ✅ ReAct模式 |
-| 模型可插拔 | N/A | N/A | ✅ LiteLLM统一接口 |
-| 可在消费级GPU运行 | N/A | N/A | ✅ 4060 8GB |
+**安装前审计系统**：在用户安装/运行技能之前，先在隔离环境中完成全部审计。沙箱内用libfaketime伪造时间偏移48h，让延迟激活的恶意代码以为已过了两天从而触发恶意行为。所有检测（包括蜜罐、网络监控、文件监控）均在审计窗口内完成，非常驻运行。
+
+### 差异化定位（vs 同期竞品，2026-04审查）
+
+| | Snyk ToxicSkills | 微软Governance Toolkit | ClawSecure | Cisco DefenseClaw | **影刃卫士** |
+|--|--|--|--|--|--|
+| 性质 | 一次性报告 | 运行时治理 | SaaS扫描器 | 开源工具集 | **安装前自动审计** |
+| SKILL.md语义分析 | 有限 | ❌ | ✅ | ✅ LLM-as-Judge | ✅ LLM自动化 |
+| 代码层扫描 | ✅ | ❌ | ✅ | ✅ YARA+Semgrep | ✅ Semgrep+Bandit |
+| **动态沙箱** | ❌ | ❌ | ❌ | ❌ | ✅ Docker+libfaketime |
+| **蜜罐诱捕** | ❌ | ❌ | ❌ | ❌ | ✅ 假凭据注入 |
+| **网络/文件监控** | ❌ | ❌ | ❌ | ❌ | ✅ mitmproxy+watchdog |
+| Agent自主推理 | ❌ | ❌ | ❌ | ❌ | ✅ ReAct模式 |
+| 模型可插拔 | N/A | N/A | N/A | N/A | ✅ LiteLLM |
+| 上下文感知 | ❌ | ❌ | ✅ 55+威胁模式 | ✅ | ✅ S6权限联动 |
+| 可在消费级GPU | N/A | N/A | N/A | ✅ | ✅ 4060 8GB |
+
+> **核心差异化：动态沙箱+蜜罐+网络文件监控，所有竞品均为纯静态分析，我们是唯一做动态检测的。**
 
 ## 技术栈完整列表
 
@@ -155,6 +163,7 @@ Windsurf打开WSL2工作区方法: File → Open Folder → \\wsl$\Ubuntu\home\n
 模型网关:    LiteLLM (统一接口，一行配置切换本地/云端模型)
 云端可选:    OpenAI GPT-4o / Anthropic Claude（对比实验用，需API Key）
 微调(可选):  LoRA via Unsloth (rank=16, alpha=32)
+时间伪造:    libfaketime (LD_PRELOAD注入，沙箱内伪造时间偏移48h检测延迟激活)
 向量数据库:  ChromaDB (本地持久化)
 嵌入模型:    BGE-small-zh-v1.5 (CPU运行,不占GPU)
 后端:        FastAPI
@@ -287,6 +296,10 @@ PI检测:        LLM Guard (ProtectAI)
 - **Skills**: Agent的扩展能力单元，由SKILL.md+代码文件组成，类比npm包
 - **ClawHub技能被多平台共享**(OpenClaw+Hermes Agent+...)，审计成果有跨平台安全保护价值
 - **Datadog GuardDog**: 开源工具，已积累22K+恶意软件包数据集，含AI Skills类别
+- **ClawSecure**: 商业SaaS扫描器，已审计3000+技能，3层审计协议，纯静态分析，无动态沙箱
+- **Cisco DefenseClaw**: 开源工具集(Skill Scanner+MCP Scanner+A2A Scanner+SecureBERT2)，静态为主
+- **Sigil**: 开源预执行隔离CLI，六阶段行为分析，偷纯静态
+- **竞品共同弱点**: 全部是纯静态分析，无动态沙箱/蜜罐/网络文件监控，这是我们的核心差异化
 
 ## 成员分工
 
@@ -378,6 +391,22 @@ PI检测:        LLM Guard (ProtectAI)
 - 核心知识（OWASP AST10规则等）直接写进System Prompt
 - 长尾知识（CVE/CWE/攻击报告）用RAG按需检索
 - LLM Wiki不适合本项目（知识量大+需要溯源引用）
+
+### 2026-04-26 — 竞品审查 + 模型可插拔设计 + 项目定位明确
+
+1. ✅ 发现并分析三个竞品（ClawSecure、Cisco DefenseClaw、Sigil）
+2. ✅ 确认所有竞品均为纯静态分析，动态沙箱+蜜罐+网络文件监控是我们的独有优势
+3. ✅ 新增模型可插拔设计（LiteLLM统一接口），论文创新点升为5个
+4. ✅ 明确项目定位为“安装前审计系统”，所有检测均在沙箱审计窗口内完成
+5. ✅ 沙箱用libfaketime伪造时间偏移48h，检测延迟激活恶意代码
+6. ✅ Semgrep规则需上下文感知（联动S6权限声明区分正常能力和恶意行为）
+7. ✅ 差异化表格扩展为5个竞品对比
+8. ✅ “技能指纹守护”放入论文Future Work（非主线功能）
+
+**未来工作（论文Future Work章节）：**
+- 技能指纹守护：安装后定期比对文件哈希，检测恶意更新（类似ClawSecure Watchtower）
+- 可选集成Cisco Skill Scanner作为额外静态工具
+- MCP Server扫描支持
 
 **下一步（待做）：**
 - [ ] ⚠️ 先解决WSL2网络问题（apt换清华镜像+DNS检查）
