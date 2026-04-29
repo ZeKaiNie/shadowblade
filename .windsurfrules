@@ -7,12 +7,16 @@
 - 团队: 3人，网络安全专业，大模型零基础
 - 硬件: 3x 笔记本 NVIDIA 4060 8GB，WSL2+Ubuntu 22.04
 
-## 当前文档版本
-- 使用v2版文档（_v2.md后缀），v1已弃用
-- 详细项目记忆见 PROJECT_CONTEXT.md
+## 项目知识库（分层 Wiki 结构）
+- 索引入口: `docs/INDEX.md`（AI 先读这个，按需加载子文件）
+- 架构: `docs/architecture.md`
+- 进度: `docs/progress.md`（高频更新）
+- 决策: `docs/decisions.md`
+- 研究: `docs/research.md`
+- 模块详情: `docs/modules/*.md`
 
 ## 技术栈
-- Python 3.11, FastAPI, Streamlit
+- Python 3.12, FastAPI, Streamlit
 - Qwen3-4B AWQ 4-bit量化 (vLLM推理)
 - 静态: Semgrep + Bandit + pip-audit + LLM Guard
 - 动态: Docker沙箱 + mitmproxy + watchdog + 蜜罐

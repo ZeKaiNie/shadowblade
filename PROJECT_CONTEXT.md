@@ -1,6 +1,9 @@
 # 影刃卫士 - 项目上下文记忆文件
 
-> **用途**：换账号/换AI工具时，将本文件内容粘贴给AI即可恢复完整项目上下文。
+> ⚠️ **已重构为分层 Wiki**：请改用 `docs/INDEX.md` 作为入口。
+> 本文件保留作为完整历史参考，不再作为 AI 主入口。
+> 新的知识库结构见 `docs/INDEX.md`
+>
 > **最后更新**：2026-04-26 14:46（竞品审查+模型可插拔+项目定位明确）
 
 ---
@@ -408,15 +411,23 @@ PI检测:        LLM Guard (ProtectAI)
 - 可选集成Cisco Skill Scanner作为额外静态工具
 - MCP Server扫描支持
 
-**下一步（待做）：**
-- [ ] ⚠️ 先解决WSL2网络问题（apt换清华镜像+DNS检查）
-- [ ] 创建Python虚拟环境 (.venv) 并安装基础依赖
-- [ ] 安装Semgrep和LLM Guard（体积大，单独安装）
-- [ ] 安装Docker（动态沙箱引擎需要）
-- [ ] 下载Qwen3-4B-AWQ模型到 models/qwen3-4b-awq/
-- [ ] 连接GitHub远程仓库（可选，需先在GitHub创建repo）
-- [ ] 开始M1里程碑：Qwen3-4B推理跑通 + 各工具安装验证
+**M1 里程碑（已完成 ✅ 2026-04-28）：**
+- [x] WSL2网络问题已解决
+- [x] nvm + Node.js 22 安装完成
+- [x] Claude Code + DeepSeek V4 Pro[1m] 安装配置完成
+- [x] 创建Python虚拟环境 (.venv) 并安装基础依赖
+- [x] 安装Semgrep 1.161.0 + Bandit 1.9.4 + pip-audit 2.10.0
+- [x] 安装Docker 29.4.1（阿里镜像源 + 国内registry mirror）
+- [x] 下载Qwen3-4B-AWQ模型到 models/qwen3-4b-awq/（2.5GB）
+- [x] 安装vLLM 0.20.0 + PyTorch 2.11.0 (CUDA 13.0)
+- [x] Qwen3-4B推理验证通过（安全审计场景测试成功）
+
+**M2 里程碑（进行中）：**
 - [ ] 构造合成恶意SKILL.md测试数据集（~50个样本）
+- [ ] 开发SKILL.md解析器（src/static_engine/）
+- [ ] 开发静态审计引擎（Semgrep规则 + Bandit集成）
+- [ ] 开发FastAPI后端框架（src/api/）
+- [ ] 连接GitHub远程仓库（可选）
 
 **当前工作区文件清单：**
 ```
@@ -439,7 +450,9 @@ PI检测:        LLM Guard (ProtectAI)
 │   ├── data_ingestion/         （空，待开发）
 │   ├── api/                    （空，待开发）
 │   └── dashboard/              （空，待开发）
-├── models/qwen3-4b-awq/       （空，待下载模型）
+├── chat.py                     ← 本地模型聊天脚本
+├── CLAUDE.md                   ← Claude Code 记忆文件
+├── models/qwen3-4b-awq/       ✅ 模型已下载（2.5GB）
 ├── data/{malicious,benign,rag_knowledge}/  （空，待获取数据）
 ├── sandbox/                    （空，待配置Docker）
 ├── tests/                      （空，待编写测试）
