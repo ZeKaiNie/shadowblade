@@ -1,5 +1,7 @@
 # 🛡️ 影刃卫士 ShadowBlade Guardian
 
+> **AI 助手请先读 `docs/INDEX.md`**，那是项目知识库入口，按需加载子文件。
+
 基于 Qwen3-4B 的 AI Agent 供应链安全审计系统，以 OpenClaw/ClawHub 13,000+ 真实技能为审计对象。
 
 ## 项目简介

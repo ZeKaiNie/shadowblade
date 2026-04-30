@@ -24,29 +24,13 @@
 - **代码目录**：`/home/niezekai/shadowblade/`（WSL2 Ubuntu）
 - **编码规范**：Python 3.12，类型注解，Pydantic，中文注释，复用开源工具
 
-## 重要：2026-04-29 辅助AI变更摘要（主AI请读）
+## 换 AI 助手？
 
-> 以下变更是辅助AI（Claude Code）在 2026-04-29 完成的。主AI（Windsurf Cascade）请审核并决定是否采纳。
+无论用 Windsurf、Claude Code、Cursor 还是其他工具：
+1. 让 AI 先读 **本文件**（`docs/INDEX.md`）
+2. AI 根据当前任务按需读取子文件
+3. 编码规范和技术栈见上方"快速上下文"
 
-### 变更背景
-赛道在 2026年3-4月集中爆发——Permiso SandyClaw（动态沙箱）、SkillSieve（学术三层框架，已开源）、微步 SafeSkill（商业4引擎）、SkillProbe（多Agent审计）、DDIPE（新型攻击）。项目原"唯一动态检测"差异化已失效。
-
-### 已修改的文件
-| 文件 | 改动 | 原因 |
-|------|------|------|
-| `docs/research.md` | 竞品表5→8，新增 SandyClaw/SkillSieve/SafeSkill/SkillProbe；新增 DDIPE 攻击专节 | 原竞品表已过时 |
-| `docs/architecture.md` | 差异化从"唯一动态"改为"四合一闭环"；新增扩展威胁覆盖表（DDIPE等） | SandyClaw 也做动态沙箱 |
-| `docs/decisions.md` | 新增2条决策：SSD四子任务、四合一差异化定位 | 记录技术选型依据 |
-| `docs/modules/ai_engine.md` | 新增 SSD 四子任务章节 | 模块文档同步 |
-| `src/ai_engine/llm_judge.py` | 新增6个Prompt模板+`judge_skill_ssd()`函数 | 参考 SkillSieve，F1 预期提升 |
-
-### 需要注意的开源成果
-- **[SkillSieve](https://arxiv.org/abs/2604.06550)**：已开源代码+数据+400样本基准，F1=0.800。**强烈建议 clone 研究**，可将其作为 baseline，论证加入动态沙箱+蜜罐后的提升
-- **[DDIPE 论文](https://arxiv.org/abs/2604.03081)**：新型攻击向量，11.6%-33.5%绕过率。我们的 S1 语义分析理论上可覆盖，但需针对性验证
-- **[SkillProbe](https://arxiv.org/abs/2603.21019)**：多Agent审计+组合风险模拟，skillhub.holosai.io 可体验
-
-### 建议主AI下一步
-1. 审核所有变更，决定是否采纳
-2. 研究 SkillSieve 开源代码（GitHub），评估可复用部分（XGBoost筛、三模型陪审团）
-3. 用 SkillSieve 的 400 样本基准扩充我们的测试集
-4. 决定是否在 M2 阶段就引入 SSD（而非等到 M5），加速核心创新
+AI 专用配置（非通用）：
+- Windsurf: `.windsurfrules`
+- Claude Code: `CLAUDE.md`
