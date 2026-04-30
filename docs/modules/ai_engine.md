@@ -28,6 +28,17 @@
 
 ## Prompt 模板
 
-两个模板均要求 LLM 返回结构化 JSON：
-- `SKILL_AUDIT_PROMPT`: 综合审计（含 RAG 参考情报段）
+三个模板均要求 LLM 返回结构化 JSON：
+- `SKILL_AUDIT_PROMPT`: 综合审计（含 RAG 参考情报段）—— 单一宽泛Prompt，作为 baseline
 - `PREREQ_AUDIT_PROMPT`: prerequisites 专项审计
+
+### SSD 四子任务（v2 新增，参考 SkillSieve）
+
+- `SSD_INTENT_PROMPT`: 意图一致性检查（权重0.35）— 声称功能 vs 实际行为
+- `SSD_PERMISSION_PROMPT`: 权限合理性检查（权重0.25）— 声明权限 vs 功能需求
+- `SSD_COVERT_PROMPT`: 隐蔽行为检测（权重0.25）— 隐藏/伪装/延迟激活
+- `SSD_CROSSFILE_PROMPT`: 跨文件一致性检查（权重0.15）— SKILL.md vs 代码脚本
+- `SSD_FUSION_PROMPT`: 四子任务融合判定（加权综合）
+
+`judge_skill_ssd()` 函数实现四子任务独立分析 + 融合判定。
+论文实验可对比 `judge_skill()` (单Prompt) vs `judge_skill_ssd()` (SSD) 的 F1 差异。

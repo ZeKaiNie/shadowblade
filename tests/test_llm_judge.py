@@ -6,9 +6,12 @@ import pytest
 
 from src.ai_engine.llm_judge import (
     judge_skill,
+    judge_skill_ssd,
     judge_prerequisites,
     _parse_json_response,
+    _run_ssd_subtask,
     LLMJudgment,
+    SSD_INTENT_PROMPT,
 )
 
 
@@ -119,3 +122,51 @@ class TestVLLMNotRunning:
             api_base="http://127.0.0.1:19999/v1",  # 故意用错误端口
         )
         assert "vLLM" in result.reasoning or "ERROR" in str(result.findings)
+
+    def test_ssd_graceful_fallback(self):
+        """SSD 模式 vLLM 未启动时也应优雅降级"""
+        result = judge_skill_ssd(
+            skill_name="Test",
+            description="test",
+            prerequisites="",
+            code_blocks=[],
+            capabilities=[],
+            matched_patterns=[],
+            api_base="http://127.0.0.1:19999/v1",
+        )
+        assert isinstance(result, LLMJudgment)
+        # 子任务全失败时不应返回 0.0（避免假阴性）
+        assert result.risk_score >= 0.3 or "ERROR" in str(result.findings)
+
+
+class TestSSDSubtask:
+    """SSD 子任务单元测试（不需要 vLLM）"""
+
+    def test_subtask_failure_returns_suspicious(self):
+        """子任务失败时应返回 0.5（可疑），而非 0.0（安全）"""
+        result = _run_ssd_subtask(
+            SSD_INTENT_PROMPT,
+            api_base="http://127.0.0.1:19999/v1",  # 故意用错误端口
+            model="fake-model",
+            skill_name="Test",
+            description="test",
+            capabilities="none",
+            code_blocks="none",
+        )
+        assert result["risk_score"] == 0.5
+        assert result["error"] is True
+
+    def test_subtask_result_has_required_keys(self):
+        """子任务结果（含失败情况）应包含必要字段"""
+        result = _run_ssd_subtask(
+            SSD_INTENT_PROMPT,
+            api_base="http://127.0.0.1:19999/v1",
+            model="fake-model",
+            skill_name="Test",
+            description="test",
+            capabilities="none",
+            code_blocks="none",
+        )
+        assert "risk_score" in result
+        assert "reasoning" in result
+        assert "findings" in result

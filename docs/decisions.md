@@ -16,6 +16,8 @@
 | 模型网关 | LiteLLM | 写死 vLLM 调用 | 一行配置切模型 |
 | 知识库 | ChromaDB+BGE-small | LLM Wiki | 需溯源引用，RAG 更适合 |
 | 论文目标 | SCI Q2 / CCF-C~B | 只发中文核心 | 5 个创新点足够支撑 |
+| Prompt 设计 | 四子任务并行（SSD） | 单一综合 Prompt | SkillSieve 验证 SSD 提升 F1 0.746→0.800 |
+| 差异化定位 | 四合一闭环 | 单一维度突破 | SandyClaw/SkillSieve/SafeSkill 各占一维 |
 
 ## 重要约束
 
