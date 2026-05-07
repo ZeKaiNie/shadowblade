@@ -91,11 +91,29 @@ class SkillAuditResult(BaseModel):
         ge=0.0, le=1.0,
         description="信任评分 0-1，越高越安全"
     )
+    risk_score: float = Field(
+        default=0.0,
+        ge=0.0, le=1.0,
+        description="风险评分 0-1，越高越危险（= 1 - trust_score）"
+    )
 
     # 各引擎的发现
     static_findings: list[str] = Field(default_factory=list, description="静态扫描发现")
     dynamic_findings: list[str] = Field(default_factory=list, description="动态沙箱发现")
     ai_findings: list[str] = Field(default_factory=list, description="AI研判发现")
+
+    # 各引擎单独的风险评分（0-1，越高越危险）
+    # 白话讲解：分项评分让用户能看到"哪个引擎发现了问题"
+    # 比如静态 0.9 但 LLM 0.2 → 可能是规则误报，看 LLM 怎么判断
+    static_risk: float = Field(default=0.0, ge=0.0, le=1.0, description="静态扫描风险分")
+    dynamic_risk: float = Field(default=0.0, ge=0.0, le=1.0, description="动态沙箱风险分")
+    ai_risk: float = Field(default=0.0, ge=0.0, le=1.0, description="AI 研判风险分")
+
+    # 引擎可用性（哪些引擎实际跑了）
+    # 白话讲解：M2 阶段没有动态引擎，dynamic_enabled=False，权重会自动重新分配
+    static_enabled: bool = Field(default=True, description="静态引擎是否启用")
+    dynamic_enabled: bool = Field(default=False, description="动态引擎是否启用")
+    ai_enabled: bool = Field(default=False, description="AI 研判是否启用")
 
     # 权限对比结果
     declared_capabilities: list[str] = Field(default_factory=list, description="声明的权限")
@@ -105,4 +123,9 @@ class SkillAuditResult(BaseModel):
         description="声明权限与实际行为是否不匹配"
     )
 
-    summary: str = Field(default="", description="审计结论摘要（LLM生成）")
+    # 解析阶段标记（来自 SkillMetadata，方便前端直接展示）
+    has_suspicious_patterns: bool = Field(default=False, description="是否含可疑关键词")
+    matched_patterns: list[str] = Field(default_factory=list, description="匹配到的可疑关键词")
+    has_ascii_smuggling: bool = Field(default=False, description="是否含 Unicode 隐写")
+
+    summary: str = Field(default="", description="审计结论摘要（LLM生成或自动生成）")
