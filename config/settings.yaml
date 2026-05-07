@@ -9,15 +9,40 @@ project:
   log_level: "INFO"             # DEBUG / INFO / WARNING / ERROR
   log_dir: "logs"
 
-# ----- Qwen3-4B 模型服务 -----
+# ----- LLM 推理服务（支持本地 vLLM / 云端 MiMo / 云端 DeepSeek 切换） -----
 llm:
-  model_path: "models/qwen3-4b-awq"           # 本地模型路径
-  model_name: "Qwen/Qwen3-4B-AWQ"             # HuggingFace模型ID（用于下载）
-  vllm_host: "127.0.0.1"
-  vllm_port: 8000
-  vllm_api_base: "http://127.0.0.1:8000/v1"   # OpenAI兼容API地址
+  # 当前使用的 provider: vllm / mimo / deepseek
+  # 白话讲解：调试时用 mimo（云端，免启动 vLLM），生产/离线用 vllm（本地）
+  provider: "vllm"
+
+  # 通用参数（三个 provider 共享）
   max_tokens: 2048
   temperature: 0.3                              # 审计任务用低温度，减少幻觉
+  timeout_seconds: 60
+
+  # ----- 本地 vLLM（默认，离线场景） -----
+  vllm:
+    api_base: "http://127.0.0.1:8000/v1"       # OpenAI兼容API地址
+    model_path: "models/qwen3-4b-awq"           # 本地模型路径
+
+  # ----- 云端 MiMo（小米 Token Plan，免费 7 亿 token 激励计划） -----
+  mimo:
+    api_base: "https://token-plan-cn.xiaomimimo.com/v1"   # Token Plan 中国区
+    model: "mimo-v2.5-pro"                                # 旗舰模型，1M 上下文
+    api_key_env: "MIMO_API_KEY"                           # 从环境变量读 key（不写yaml）
+
+  # ----- 云端 DeepSeek（备用） -----
+  deepseek:
+    api_base: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    api_key_env: "DEEPSEEK_API_KEY"
+
+  # ----- 以下字段保留以兼容现有代码（旧字段，逐步迁移到 vllm 子节） -----
+  model_path: "models/qwen3-4b-awq"             # 旧路径字段（向后兼容）
+  model_name: "Qwen/Qwen3-4B-AWQ"               # HuggingFace模型ID（用于下载）
+  vllm_host: "127.0.0.1"
+  vllm_port: 8000
+  vllm_api_base: "http://127.0.0.1:8000/v1"
   gpu_memory_utilization: 0.85                  # vLLM显存占比（4060 8GB留一点余量）
   quantization: "awq"
 
