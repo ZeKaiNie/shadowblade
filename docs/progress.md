@@ -1,20 +1,14 @@
 # 开发进度
 
-> 最后更新：2026-05-10（**Hermes 暂缓**，焦点回 M2 收尾 + M3 静态引擎；XIAOMI_API_KEY 已要求用户轮换）
+> 最后更新：2026-07-18（**Hermes 已完全弃用与清理**，焦点回归 M3 静态引擎与 M4 动态沙箱）
 
 ## 当前状态：M2 → M3 过渡（静态全链路打通）
 
-### 2026-05-10 决定：Hermes 暂缓 ⏸️ + 切回 M3 选项 B（LLM 接入流水线）
+### 2026-07-18 决定：Hermes 已完全弃用并清理 ❌
 
-**两个决定**：
-1. **Hermes Agent 暂缓**——先放下，专注项目本体。Hermes 已安装 + provider 配好（D 盘原位保留，以后随时可继续）。
+**核心决定**：
+1. **Hermes Agent 彻底下线**：已从项目中删除 `docs/hermes_setup.md`，并彻底清除了 D 盘的 `hermes_data` 和 `hermes_workspace` 目录。释放了 1.3GB+ 的本地磁盘空间。日常开发与调试工具全部由现代化 AI 助手（如 Antigravity）直接进行联网搜索与爬取。
 2. **下一步选定 M3 选项 B**：把 MiMo LLM 接入 `pipeline.audit_skill()`，跑 15 样本（10 恶意 + 5 正常）拿**联合检出率/误报率**第一手数据。
-
-**Hermes 保留的资产**（D 盘原位，未来恢复时用）：
-- 安装：`/mnt/d/hermes_data/hermes_home/hermes-agent/`
-- 配置：`config.yaml` (mimo-v2.5-pro + xiaomi)、`.env`（旧 key 已要求轮换 → 即将清空）、`models_dev_cache.json` (1.9MB)
-- 工作区：`/mnt/d/hermes_workspace/`、cache 软链
-- 边界：`~/.config/hermes/WORKSPACE.md`
 
 #### 选项 B 已完成的诊断（今天 15:09-15:18）
 
@@ -74,103 +68,6 @@
 
 **未来重启 Hermes 时的接续点**：见 5/9 晚那一节的待办（方案 A 搬 venv 到 C 盘 → 验证连通 → §2.5/§2.4/§3）
 
----
-
-### 2026-05-09 晚 Hermes MiMo provider 配置完成 ✅（已暂缓，待复用）
-
-**最终结果**：`config.yaml` 写入 `model.default=mimo-v2.5-pro` + `provider=xiaomi`；`.env` 保存 `XIAOMI_API_KEY` + `XIAOMI_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1`；`models_dev_cache.json` 1.9MB 已缓存。
-
-**关键发现 & 学习**：
-
-1. **Hermes 实际行为 ≠ 手册 §2.2**：Hermes 内置了 Xiaomi MiMo 预设 provider，硬编码变量名为 `XIAOMI_API_KEY`（不是手册写的 `MIMO_API_KEY`）；.env 路径是 `$HERMES_HOME/.env` 而非 `~/.hermes/.env`（仅当 `HERMES_HOME` 未设时才是后者）。**手册 §2.2 下次要修**。
-2. **Base URL 默认值陷阱**：Hermes 默认值是 `https://api.xiaomimimo.com/v1`，但 token-plan 用户（key 前缀 `tp-`）**必须手动输** `https://token-plan-cn.xiaomimimo.com/v1`，否则 401。
-3. **models.dev 拉模型 catalog 可能卡 15s**：源码 `agent/models_dev.py:226` 有 `timeout=15` + 三层 fallback（network → disk cache → curated list）。**不要 Ctrl+C**，否则 `KeyboardInterrupt` 不被 `except Exception` 吞掉，整个进程崩。第一次跑成功后会落盘 `models_dev_cache.json`，后续启动不再联网。
-4. **启动慢根因：D 盘 9P 协议**：`hermes --version` 在 D 盘 venv 要 **15 秒**（对比 C 盘 ext4 的 Python 空启动 38 ms）。venv 839 MB、413 个包都在 `/mnt/d/hermes_data/hermes_home/hermes-agent/venv/`，跨 9P 协议 import 奇慢。→ **方案 A：搬 venv + 源码到 C 盘 `~/hermes-agent/`，数据保留 D 盘**。一次性 C 盘净增 ~1.2 GB，之后启动降到 1-2 秒。明天执行。
-
-**【⚠️ 安全事件】**：5/9 晚指导用户时让用户 `nano $HERMES_HOME/.env` 看 key，但 IDE 抓取了 nano 的完整输出并传给 Cascade → **当前 XIAOMI_API_KEY 已暴露在 Cascade 对话上下文**。明天方案 A 搞完后，用户需到 token-plan 控制台轮换 key。今后类似场景应用 `sed -i 's/^XIAOMI_API_KEY=.*/XIAOMI_API_KEY=.../' $HERMES_HOME/.env`（IDE 不会抓内容），避免走 nano。
-
-**待办**（按优先级）：
-- [ ] **方案 A：搬 venv + 源码到 C 盘 ~/hermes-agent/**（rsync 代码 + 重装 413 包，15 分钟）
-- [ ] 验证 MiMo 连通：`hermes` → 问一句话，看是否返回
-- [ ] **轮换 XIAOMI_API_KEY**（安全修复）
-- [ ] §2.5 关闭 `skills.auto_create` 和 `skills.auto_improve`
-- [ ] §3 跑 6 步验收（**特别是写入边界测试：让 Hermes 试写 `~/shadowblade/test.txt` 应被拒**）
-- [ ] §2.4 配 Telegram bot（可选，不急）
-- [ ] 更新 `docs/hermes_setup.md`（.env 路径、XIAOMI_API_KEY 变量名、方案 A 性能节）
-- [ ] 部署 §4 任务 A/B/C（爬 ClawHub 样本 / 每日竞品论文搜索 / 爬 GitHub skill 仓库）
-
-**配置过程中要避坑**（比旧版多两条）：
-- ❌ 绝不用 `run_command` 跑 `hermes` 交互向导 —— 会要 API key 输入，pipe 模式下可能再次回显
-- ❌ 绝不用 `nano` 打开含敏感值的文件 —— IDE 会抓取完整输出传给 Cascade
-- ❌ `hermes model` 向导一旦开始就别 Ctrl+C，让 15s timeout 自己触发 fallback
-- ✅ 配置由用户在自己 WSL 终端跑 `hermes model` 或 `hermes config set ...`，Cascade 只指导命令
-- ✅ 敏感值改用 `sed -i` 或 `printf | tee` 风格，让 IDE 看不到内容
-
----
-
-### 2026-05-09 Hermes Agent 本体安装完成 ✅（归档）
-
-**最终结果**：`hermes --version` 输出 `Hermes Agent v0.12.0 (2026.4.30) / Up to date`，已链接到 `~/.local/bin/hermes`。venv site-packages 装了 **413 个包**，uv 缓存 1.3 GB。
-
-**关键学习**：
-1. **绕过 install.sh 的 git pull 是对的** —— 直接用 `uv pip install -e ".[all]"` 装依赖，比走 install.sh 稳得多（GitHub 不稳定时不被卡）
-2. **清华 PyPI 镜像加速效果显著** —— 5/9 重跑只用 11 分钟装完全部 413 包（包含编译），vs 5/7 晚 21 分钟还没装完
-3. **uv 缓存幂等性可靠** —— 5/7 晚 Ctrl+C 留下的 268 MB 缓存被 5/9 重跑完全复用
-
----
-
-### 2026-05-08 Hermes Agent 安装进度（已解决，归档）
-
-**当时卡点**：`install.sh` 在「Updating existing installation」步骤 git pull 失败（`error: RPC failed; curl 56 Recv failure: Connection reset by peer`）—— **GitHub 国内抽风**，与镜像源/工具链无关。**5/9 通过绕过 install.sh、直接 `uv pip install` 解决**。
-
-**已完成的安装步骤**（昨晚 + 今天，全部可复用）：
-- ✅ `HERMES_HOME=/mnt/d/hermes_data/hermes_home` 已设置 + 持久化到 `~/.bashrc`
-- ✅ `UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple` 已设置 + 持久化到 `~/.bashrc`（清华 PyPI 镜像）
-- ✅ `uv 0.11.11` 已装在 `~/.local/bin/uv`
-- ✅ apt 包：`build-essential` / `libffi-dev` / `python3-dev` / `ripgrep 14.1.0` 全装好（昨晚 sudo 装的）
-- ✅ 源码：`/mnt/d/hermes_data/hermes_home/hermes-agent/`（git clone 完整，262 MB）
-- ✅ Python 3.11.15 venv：`/mnt/d/hermes_data/hermes_home/hermes-agent/venv/`（昨晚 install.sh 创建）
-- ✅ uv 缓存：`~/.cache/uv/`（268 MB，昨晚下了一部分依赖，重跑会复用）
-- ❌ Python 依赖未装完（venv site-packages 仅 2 个文件，应有 100+）
-- ❌ `~/.local/bin/hermes` 命令链接未创建
-- ❌ 配置（MiMo provider、Telegram、关闭 auto_create skill）全部待做
-
-**关键安全事件**（已处理）：5/7 晚 install.sh 在 sudo 提示符回显了用户密码（curl|bash 经 pipe 喂 stdin 时 sudo 不切换 echo off），用户已在 WSL 跑 `passwd` 改新密码。**今后绝不通过 `run_command` 跑会要 sudo 的命令**。
-
-**下次开工的具体命令**（绕过 install.sh 的 git pull，直接装依赖）：
-```bash
-# 1. 直接用 uv 装依赖到现有 venv（跳过 git pull）
-uv pip install --python /mnt/d/hermes_data/hermes_home/hermes-agent/venv/bin/python -e "/mnt/d/hermes_data/hermes_home/hermes-agent[all]"
-
-# 2. 创建 hermes 命令链接
-mkdir -p ~/.local/bin
-ln -sf /mnt/d/hermes_data/hermes_home/hermes-agent/venv/bin/hermes ~/.local/bin/hermes
-
-# 3. 验证
-hermes --version
-```
-预计 3-5 分钟（清华镜像 + 复用昨晚缓存）。
-
-**手册位置**：`docs/hermes_setup.md` v2，§2.1-§3 章节。注意手册里的 install.sh 入口已修正为 `https://hermes-agent.nousresearch.com/install.sh`（之前误写 GitHub raw URL）。
-
-**安装完成后的下一步**：§2.2 配 MiMo（要 `MIMO_API_KEY`）、§2.4 配 Telegram bot token、§2.5 关闭 auto_create_skill、§3 跑 6 步验收（特别是验证 Hermes 是否真不能写 `~/shadowblade/`）。
-
----
-
-### 2026-05-07 工具链决议：引入 Hermes Agent 作为第三 AI（v2 收紧）
-- **背景**：CC + MiMo 联网失败（根因：CC 的 `WebSearch` 是 Anthropic 服务端工具，跨 provider 不存在）
-- **决议**：引入 Nous Research 的 Hermes Agent，定位**纯外部杂活工人**——只搜索/爬虫/报告，不替换 Cascade 与 CC
-- **边界 v2（按用户最新要求收紧）**：
-  - Hermes **对 `~/shadowblade/` 整个项目目录只读**（含 src/、tests/、config/、docs/、data/、sandbox/、根文件全部）
-  - 工作区迁出项目，落在 `/mnt/d/hermes_workspace/`（D 盘 148G 可用）
-  - C 盘只剩 78G，加了磁盘监控 cron + Hermes 工作区 50G 硬上限 + WSL2 vhdx 月度收缩流程
-  - 想合入项目的产出由用户/Cascade **人工 cp**，Hermes 自己不 cp
-- **产出**：
-  - `docs/hermes_setup.md`（v2，10+ 节，含磁盘防护章节）
-  - `sandbox/README.md`（明确 Hermes 不写 sandbox/）
-  - `.gitignore` 已回滚（无需特殊 hermes 条目，因为 Hermes 不再写项目）
-- **决议文档**：`/home/niezekai/.windsurf/plans/networking-and-hermes-1b422c.md`
-- **状态**：待用户执行安装（`curl ... install.sh | bash`），手册中 §2 步骤已就绪
 
 ### M1 ✅ 已完成（2026-04-28）
 - WSL2 环境 + Python .venv
