@@ -11,7 +11,7 @@
 | `AGENTS.md`（根目录） | AI 协作/编码/学术诚信规则（取代旧 CLAUDE.md/.windsurfrules） | 低 |
 | `PROJECT_CONTEXT.md`（根目录） | 项目上下文精简版（现状/团队/论文目标） | 中 |
 | `docs/progress.md` | 当前进度、待办、里程碑状态 | **高**（每次开发后更新） |
-| `docs/planning/` | 客观评估、CCF-C 论文可行性、v2 架构重构设计 | 中 |
+| `docs/planning/` | 客观评估、CCF-C 可行性、v2 架构、**2026 现状调研+方向修正**、**方向A 研究计划** | 高 |
 | `docs/architecture.md` | 系统架构、技术栈、威胁模型 | 低 |
 | `docs/decisions.md` | 关键技术决策记录 | 低 |
 | `docs/research.md` | 竞品/攻击案例/数据集（⚠️ 条目未核实，引用前须查证） | 低 |
@@ -58,6 +58,7 @@ config/settings.yaml   # 全局配置
 ```
 
 ### 最近变更
+- 07-18 **联网竞品调研**：核实赛道已饱和（USENIX'26/MalSkillBench/BIV 等预印本），锁定方向 A（运行时接地能力一致性核验+蜜罐取证+阻断），拉取公开数据集，见 `docs/planning/2026现状调研与论文方向修正.md` + `docs/planning/方向A_运行时接地能力一致性核验_研究计划.md`
 - 07-18 项目整理：移除个人知识库 `knowledge/`、合并规则为 `AGENTS.md`、精简 `PROJECT_CONTEXT.md`、收录 `docs/planning/`、`research.md` 加未核实警告
 - 07-18 动态引擎最小闭环落地并接入综合评分（PR #1 已合入 main）
 
