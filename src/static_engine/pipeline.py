@@ -16,13 +16,12 @@ from pathlib import Path
 from typing import Optional
 
 from src.static_engine.models import (
+    RiskLevel,
     SkillAuditResult,
     SkillMetadata,
-    RiskLevel,
 )
-from src.static_engine.skill_parser import parse_skill_md, parse_skill_from_file
-from src.static_engine.scanner import scan_code_blocks, ScanReport
-
+from src.static_engine.scanner import ScanReport, scan_code_blocks
+from src.static_engine.skill_parser import parse_skill_md
 
 # ---------- 静态引擎评分 ----------
 
@@ -250,17 +249,21 @@ def _combine_scores(
     ai_risk: float,
     static_enabled: bool,
     ai_enabled: bool,
-    static_weight: float = 0.5,
-    ai_weight: float = 0.5,
+    dynamic_risk: float = 0.0,
+    dynamic_enabled: bool = False,
+    static_weight: float = 0.4,
+    dynamic_weight: float = 0.35,
+    ai_weight: float = 0.25,
 ) -> float:
     """
     把各引擎的风险分加权综合成最终风险分
 
     白话讲解：
-    - 用加权平均；只对**实际启用**的引擎计算（动态引擎 M2 还没做，跳过）
-    - 权重会自动归一化：只有静态时 = 100% 静态；都启用时 = 50/50
+    - 用加权平均；只对**实际启用**的引擎计算（未启用的引擎自动剔除）
+    - 权重会自动归一化：只有静态时 = 100% 静态；三个都开时按 0.4/0.35/0.25
+    - 权重与 config/settings.yaml 的 trust_score.weights 对齐
 
-    设计上不直接把"未启用引擎"算 0，因为那等于宣称"动态引擎确认安全"，
+    设计上不直接把"未启用引擎"算 0，因为那等于宣称"该引擎确认安全"，
     会冲淡其他引擎的告警。
 
     返回: 综合风险分 (0-1)
@@ -270,6 +273,9 @@ def _combine_scores(
     if static_enabled:
         weights["static"] = static_weight
         scores["static"] = static_risk
+    if dynamic_enabled:
+        weights["dynamic"] = dynamic_weight
+        scores["dynamic"] = dynamic_risk
     if ai_enabled:
         weights["ai"] = ai_weight
         scores["ai"] = ai_risk
@@ -289,6 +295,7 @@ def audit_skill(
     skill_md_content: str,
     enable_static_scan: bool = True,
     enable_llm: bool = False,
+    enable_dynamic: bool = False,
     semgrep_rules_dir: str = "config/semgrep_rules",
     bandit_severity: str = "low",
     suspicious_patterns: Optional[list[str]] = None,
@@ -297,6 +304,11 @@ def audit_skill(
     llm_model: str = "models/qwen3-4b-awq",
     llm_api_key: Optional[str] = None,
     rag_knowledge_base=None,
+    # 动态引擎参数（仅在 enable_dynamic=True 时生效）
+    dynamic_backend: str = "auto",
+    dynamic_image: str = "python:3.11-slim",
+    dynamic_timeout: int = 60,
+    dynamic_allow_unsafe_subprocess: bool = False,
 ) -> SkillAuditResult:
     """
     静态审计主流水线（接收 SKILL.md 字符串）
@@ -377,12 +389,44 @@ def audit_skill(
             ai_findings = [f"[LLM ERROR] {e}"]
             ai_enabled_actual = False
 
+    # ===== 步骤 3.5：动态沙箱研判（可关，默认关） =====
+    dynamic_risk = 0.0
+    dynamic_findings: list[str] = []
+    dynamic_enabled_actual = False
+    dynamic_identity_written: list[str] = []
+
+    if enable_dynamic and metadata.code_blocks:
+        try:
+            # 延迟 import，避免没启用动态引擎时也加载 docker/harness 相关模块
+            from src.dynamic_engine.pipeline import audit_dynamic
+
+            dyn = audit_dynamic(
+                code_blocks=metadata.code_blocks,
+                code_languages=metadata.code_language,
+                backend=dynamic_backend,
+                image=dynamic_image,
+                timeout=dynamic_timeout,
+                allow_unsafe_subprocess=dynamic_allow_unsafe_subprocess,
+            )
+            dynamic_risk = dyn.risk_score
+            dynamic_findings = dyn.finding_texts
+            dynamic_identity_written = dyn.identity_files_written
+            # 只有沙箱真的跑起来了，动态分才计入综合评分
+            dynamic_enabled_actual = dyn.executed
+            if not dyn.executed and dyn.reason:
+                dynamic_findings.insert(0, f"[动态引擎未执行] {dyn.reason}")
+        except Exception as e:
+            dynamic_findings = [f"[动态引擎 ERROR] {e}"]
+            dynamic_enabled_actual = False
+
     # ===== 步骤 4：综合评分 =====
     final_risk = _combine_scores(
         static_risk=static_risk,
         ai_risk=ai_risk,
         static_enabled=True,
         ai_enabled=ai_enabled_actual,
+        dynamic_risk=dynamic_risk,
+        dynamic_enabled=dynamic_enabled_actual,
     )
     final_trust = 1.0 - final_risk
     risk_level = _risk_score_to_level(final_risk)
@@ -396,16 +440,16 @@ def audit_skill(
         trust_score=final_trust,
         risk_score=final_risk,
         static_findings=static_findings,
-        dynamic_findings=[],          # M2 阶段没有动态引擎
+        dynamic_findings=dynamic_findings,
         ai_findings=ai_findings,
         static_risk=static_risk,
-        dynamic_risk=0.0,
+        dynamic_risk=dynamic_risk,
         ai_risk=ai_risk,
         static_enabled=True,
-        dynamic_enabled=False,
+        dynamic_enabled=dynamic_enabled_actual,
         ai_enabled=ai_enabled_actual,
         declared_capabilities=metadata.declared_capabilities,
-        actual_capabilities=[],       # 待 S6 实现（实际行为提取）
+        actual_capabilities=dynamic_identity_written,   # 动态观测到的敏感写入行为
         permission_mismatch=False,    # 待 S6 实现
         has_suspicious_patterns=metadata.has_suspicious_patterns,
         matched_patterns=metadata.matched_patterns,

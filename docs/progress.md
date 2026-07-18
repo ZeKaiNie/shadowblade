@@ -2,7 +2,14 @@
 
 > 最后更新：2026-07-18（**Hermes 已完全弃用与清理**，焦点回归 M3 静态引擎与 M4 动态沙箱）
 
-## 当前状态：M2 → M3 过渡（静态全链路打通）
+## 当前状态：M2 → M3 过渡（静态全链路打通）+ M4 动态引擎最小闭环已落地
+
+### 2026-07-18 — M4 动态引擎最小闭环（Devin）
+
+- ✅ 新增 `src/dynamic_engine/`：honeypot（蜜罐随机标记假凭据）+ harness（沙箱内 `sys.addaudithook` 行为探针）+ sandbox（Docker `--network none` 沙箱 + 子进程兜底）+ monitor（行为研判打分）+ pipeline（`audit_dynamic()`）
+- ✅ 已接入 `static_engine/pipeline.audit_skill(enable_dynamic=True)`，综合评分升级为静态/动态/LLM 三引擎加权（0.4/0.35/0.25，未启用自动归一化），无 Docker 时优雅降级
+- ✅ 新增 `tests/test_dynamic_engine.py` 22 个测试（含 Docker 集成测试，skipif 保护）；全套 78 passed + 10 skipped
+- 🔄 待补：mitmproxy 流量解密、libfaketime 48h 延迟激活、多次执行行为对比、非 Python 载荷
 
 ### 2026-07-18 决定：Hermes 已完全弃用并清理 ❌
 
