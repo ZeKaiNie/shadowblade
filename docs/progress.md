@@ -4,6 +4,16 @@
 
 ## 当前状态：M2 → M3 过渡（静态全链路打通）+ M4 动态引擎最小闭环已落地
 
+### 2026-07-18 — 项目整理 + 主页/文档校正（Devin）
+
+- ✅ 更新 `README.md`：加"开发状态"进度表、核心原理、运行测试与用法示例、安全提示
+- ✅ 移除个人知识库 `knowledge/`（Obsidian 私人笔记 + 两篇无关课程作业，不属代码库）
+- ✅ 合并 `CLAUDE.md` + `.windsurfrules` → 统一 `AGENTS.md`（旧双 AI 分工模式废弃）
+- ✅ 精简 `PROJECT_CONTEXT.md`（旧 460 行含编造指标/过时规划 → 精简校正版）
+- ✅ `docs/research.md` 顶部加"未核实警告"；`docs/INDEX.md` 重建索引
+- ✅ 新增 `docs/planning/`：客观评估报告 + CCF-C 论文可行性与排期 + v2 架构重构设计
+- ⚠️ 明确作废旧文档"15 样本 / 100% 检出 / 0% 误报"等编造指标
+
 ### 2026-07-18 — M4 动态引擎最小闭环（Devin）
 
 - ✅ 新增 `src/dynamic_engine/`：honeypot（蜜罐随机标记假凭据）+ harness（沙箱内 `sys.addaudithook` 行为探针）+ sandbox（Docker `--network none` 沙箱 + 子进程兜底）+ monitor（行为研判打分）+ pipeline（`audit_dynamic()`）

@@ -16,21 +16,20 @@ AI Agent 技能市场（如 ClawHub）正在快速增长，但缺乏系统化的
 |------|------|------|
 | 静态审计引擎 | ✅ 已完成 | SKILL.md 解析 + Semgrep/Bandit/pip-audit + 隐写检测 + LLM 语义研判 + 风险评分 |
 | 动态审计引擎 | 🟡 最小闭环已落地 | Docker 沙箱（断网/限资源/即焚）+ 蜜罐诱饵 + 审计钩子行为监控 + 研判打分，已接入综合评分 |
-| ├ mitmproxy 流量解密 | ⬜ 待开发 | 当前用审计钩子捕获网络目标，未解密 HTTPS body |
+| ├ 内核级监控 (eBPF/seccomp) | ⬜ 待开发 | 补 Python 审计钩子的盲区（非 Python/原生载荷、抗规避） |
 | ├ libfaketime 时间伪造 | ⬜ 待开发 | 用于触发延迟激活的恶意代码 |
 | ├ 多次执行行为对比 | ⬜ 待开发 | 正常 vs 伪造 48h 后行为差异 |
+| 数据集 + 评测框架 | ⬜ 待开发（论文生命线） | 攻击分类学 + 数百级标注样本 + P/R/F1/FPR + baseline/消融 |
 | AI 研判引擎 | 🟡 部分 | RAG 检索/信任评分已有骨架 |
-| 数据接入 / 爬虫 | ⬜ 待开发 | ClawHub 技能批量抓取 |
-| FastAPI 后端 | ⬜ 待开发 | |
-| Streamlit 仪表盘 | ⬜ 待开发 | |
+| 数据接入 / FastAPI / Streamlit | ⬜ 待开发 | demo 级，非论文关键路径 |
 
-> 详细进度见 `docs/progress.md`，动态引擎设计见 `docs/modules/dynamic_engine.md`。
+> 详细进度见 `docs/progress.md`；动态引擎设计见 `docs/modules/dynamic_engine.md`；整体重构与论文规划见 `docs/planning/`。
 
 ## 技术栈
 
 - **模型**: Qwen3-4B AWQ 4-bit 量化 (vLLM 推理)
 - **静态审计**: Semgrep + Bandit + pip-audit + LLM Guard
-- **动态审计**: Docker 沙箱 + CPython 审计钩子（`sys.addaudithook`）+ 蜜罐（mitmproxy / libfaketime 规划中）
+- **动态审计**: Docker 沙箱 + CPython 审计钩子（`sys.addaudithook`）+ 蜜罐（内核级监控 / libfaketime 规划中）
 - **AI 研判**: ChromaDB + BGE-small + Qwen3-4B RAG
 - **后端**: FastAPI | **前端**: Streamlit
 
@@ -39,7 +38,7 @@ AI Agent 技能市场（如 ClawHub）正在快速增长，但缺乏系统化的
 ```
 src/
 ├── static_engine/    # 静态审计引擎（Semgrep/Bandit/pip-audit/LLM Guard/LLM语义审查）
-├── dynamic_engine/   # 动态审计引擎（Docker沙箱/mitmproxy/watchdog/蜜罐）
+├── dynamic_engine/   # 动态审计引擎（Docker沙箱/蜜罐/审计钩子行为监控）
 ├── ai_engine/        # AI研判引擎（RAG检索/信任评分/报告生成）
 ├── data_ingestion/   # 数据接入（ClawHub爬虫/SKILL.md解析）
 ├── api/              # FastAPI 后端API
@@ -80,7 +79,7 @@ python -m pytest -q
 python -m pytest tests/test_dynamic_engine.py -v
 ```
 
-### 动态审计用法示例
+### 用法示例
 
 ```python
 from src.static_engine.pipeline import audit_skill
