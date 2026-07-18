@@ -49,3 +49,4 @@ data/hermes_output/
 # ===== 敏感信息 =====
 .env
 *.key
+datasets_external/
