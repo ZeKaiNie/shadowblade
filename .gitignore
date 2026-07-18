@@ -41,6 +41,11 @@ Thumbs.db
 # ===== Docker =====
 sandbox/*.tar
 
+# ===== Hermes Agent 工作区（运行时产物，不入 git） =====
+# 说明性 README 在父目录，子目录内容（爬取缓存、批量标注、报告）整体忽略
+sandbox/hermes_workspace/
+data/hermes_output/
+
 # ===== 敏感信息 =====
 .env
 *.key

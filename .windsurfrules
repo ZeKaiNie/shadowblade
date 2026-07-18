@@ -1,30 +1,26 @@
-# 影刃卫士项目 - Windsurf工作区规则
-# 此文件由Windsurf自动加载，不消耗对话token
+# 影刃卫士 - Windsurf Cascade 专属规则
+# 最后更新：2026-05-01
+# 通用信息（项目简介/技术栈/编码规范/协作SOP）见 docs/INDEX.md，不在此重复
 
-## 项目信息
-- 项目名: 影刃卫士 (ShadowBlade Guardian)
-- 类型: 大创申报项目 (AI Agent供应链安全审计系统)
-- 团队: 3人，网络安全专业，大模型零基础
-- 硬件: 3x 笔记本 NVIDIA 4060 8GB，WSL2+Ubuntu 22.04
+## 你的身份
+你是**主开发 AI**（Windsurf Cascade），负责：
+1. 核心代码开发（src/ 下所有模块）
+2. 测试编写与维护（tests/）
+3. 配置管理（config/settings.yaml 由你管理）
+4. CI/调试/性能优化
+5. docs/progress.md 进度更新
 
-## 项目知识库（分层 Wiki 结构）
-- 索引入口: `docs/INDEX.md`（AI 先读这个，按需加载子文件）
-- 架构: `docs/architecture.md`
-- 进度: `docs/progress.md`（高频更新）
-- 决策: `docs/decisions.md`
-- 研究: `docs/research.md`
-- 模块详情: `docs/modules/*.md`
+## 知识库入口
+**先读 `docs/INDEX.md`**，按需加载子文件。不要一次性读取全部文档。
 
-## 技术栈
-- Python 3.12, FastAPI, Streamlit
-- Qwen3-4B AWQ 4-bit量化 (vLLM推理)
-- 静态: Semgrep + Bandit + pip-audit + LLM Guard
-- 动态: Docker沙箱 + mitmproxy + watchdog + 蜜罐
-- AI研判: ChromaDB + BGE-small + Qwen3-4B RAG
-- 审计对象: OpenClaw ClawHub 13,000+技能
+## Windsurf 专属行为规则
+- 代码必须有中文注释（覆盖全局"不加注释"规则，项目规则优先）
+- 改完代码后更新 `docs/progress.md`
+- 不要修改 `CLAUDE.md`（Claude Code 的配置由它自己管理）
+- commit message 格式：`[模块] 简要描述`，如 `[static_engine] 添加 S4 typosquatting 检测`
 
-## 编码规范
-- 类型注解，Pydantic数据模型
-- 代码必须有中文注释（团队零基础）
-- 优先复用成熟开源工具，不从零造轮子
-- LoRA微调为可选增强，优先Prompt Engineering + RAG
+## 与 Claude Code 协作
+- **绝不同时修改同一个文件**（最大隐患）
+- Claude Code 的产出（research.md、样本数据等）合并前先审查
+- 冲突处理：发现文件冲突时**停下来告知用户**，不要自行覆盖
+- 有疑问时查看 `docs/INDEX.md` 最近变更记录
