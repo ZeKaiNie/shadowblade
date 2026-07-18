@@ -8,11 +8,29 @@
 
 AI Agent 技能市场（如 ClawHub）正在快速增长，但缺乏系统化的安全审计手段。影刃卫士通过**静态分析 + 动态沙箱 + AI 研判**三引擎协同，自动检测技能中的恶意代码、数据窃密、提示词注入等安全威胁。
 
+核心思路：不止"猜"技能是不是恶意，而是把它放进**布满蜜罐诱饵的隔离沙箱**里真实执行，用 CPython 审计钩子捕获运行时行为——一旦它去偷假凭据并往外发，蜜罐随机标记会在网络/子进程参数里现形，形成"抓现行"的确凿证据。
+
+## 开发状态
+
+| 引擎 / 模块 | 状态 | 说明 |
+|------|------|------|
+| 静态审计引擎 | ✅ 已完成 | SKILL.md 解析 + Semgrep/Bandit/pip-audit + 隐写检测 + LLM 语义研判 + 风险评分 |
+| 动态审计引擎 | 🟡 最小闭环已落地 | Docker 沙箱（断网/限资源/即焚）+ 蜜罐诱饵 + 审计钩子行为监控 + 研判打分，已接入综合评分 |
+| ├ mitmproxy 流量解密 | ⬜ 待开发 | 当前用审计钩子捕获网络目标，未解密 HTTPS body |
+| ├ libfaketime 时间伪造 | ⬜ 待开发 | 用于触发延迟激活的恶意代码 |
+| ├ 多次执行行为对比 | ⬜ 待开发 | 正常 vs 伪造 48h 后行为差异 |
+| AI 研判引擎 | 🟡 部分 | RAG 检索/信任评分已有骨架 |
+| 数据接入 / 爬虫 | ⬜ 待开发 | ClawHub 技能批量抓取 |
+| FastAPI 后端 | ⬜ 待开发 | |
+| Streamlit 仪表盘 | ⬜ 待开发 | |
+
+> 详细进度见 `docs/progress.md`，动态引擎设计见 `docs/modules/dynamic_engine.md`。
+
 ## 技术栈
 
 - **模型**: Qwen3-4B AWQ 4-bit 量化 (vLLM 推理)
 - **静态审计**: Semgrep + Bandit + pip-audit + LLM Guard
-- **动态审计**: Docker 沙箱 + mitmproxy + watchdog + 蜜罐
+- **动态审计**: Docker 沙箱 + CPython 审计钩子（`sys.addaudithook`）+ 蜜罐（mitmproxy / libfaketime 规划中）
 - **AI 研判**: ChromaDB + BGE-small + Qwen3-4B RAG
 - **后端**: FastAPI | **前端**: Streamlit
 
@@ -52,6 +70,33 @@ pip install -r requirements.txt
 # 5. 启动仪表盘
 # streamlit run src/dashboard/app.py
 ```
+
+### 运行测试
+
+```bash
+# 全套测试（需要 chromadb 才能跑 RAG 相关用例）
+python -m pytest -q
+# 动态引擎测试（Docker 集成用例在无 Docker 时自动跳过）
+python -m pytest tests/test_dynamic_engine.py -v
+```
+
+### 动态审计用法示例
+
+```python
+from src.static_engine.pipeline import audit_skill
+
+# 静态 + 动态沙箱协同审计（默认关闭动态，显式开启）
+result = audit_skill(skill_md_content, enable_dynamic=True)  # 默认走 Docker，无 Docker 时优雅降级
+print(result.risk_level, result.risk_score)
+print(result.dynamic_findings)   # 动态发现（蜜罐命中/身份文件篡改/外联等）
+
+# 或单独调用动态引擎
+from src.dynamic_engine.pipeline import audit_dynamic
+dyn = audit_dynamic(code_blocks, code_languages, backend="docker")
+print(dyn.risk_score, dyn.honeypot_triggered, dyn.finding_texts)
+```
+
+> ⚠️ 安全提示：动态引擎默认必须在 Docker 隔离沙箱中执行陌生代码；无 Docker 时不会自动在宿主机运行，除非显式 `allow_unsafe_subprocess=True`（仅供本地测试，切勿用于真实恶意样本）。
 
 ## 硬件要求
 
