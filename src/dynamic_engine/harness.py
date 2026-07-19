@@ -17,6 +17,7 @@
 
 ⚠️ 本脚本只用标准库，保证在 python:slim 这种最小镜像里也能直接跑，无需 pip 安装。
 """
+import inspect
 import json
 import os
 import runpy
@@ -47,6 +48,73 @@ _IDENTITY_FILE_NAMES = {"SOUL.md", "MEMORY.md", "AGENTS.md"}
 
 # 探针自身的脚手架文件，读写它们属于框架噪声，不计入技能行为
 _OWN_FILES = {"harness.py", "skill_payload.py", "config.json"}
+
+# 样本代码文件名（用于判断"哪些函数是样本自己定义的"）
+_PAYLOAD_BASENAME = "skill_payload.py"
+
+# 常见入口函数名（优先按此顺序调用；agent 一般会调用这些"入口"来使用技能）
+_ENTRYPOINT_PRIORITY = (
+    "main", "run", "execute", "start", "handler", "handle", "invoke",
+    "entry", "entrypoint", "process", "process_commands", "setup",
+    "install", "activate", "init", "app",
+)
+
+# 单次执行最多主动调用的入口函数数量（防止极端样本函数过多拖垮沙箱）
+_MAX_ENTRYPOINTS = 60
+
+
+def _no_required_args(func) -> bool:
+    """判断一个函数是否可以"无参调用"（所有形参都有默认值或是 *args/**kwargs）。"""
+    try:
+        sig = inspect.signature(func)
+    except (ValueError, TypeError):
+        return False
+    for p in sig.parameters.values():
+        if p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD):
+            continue
+        if p.default is p.empty:
+            return False
+    return True
+
+
+def _invoke_entrypoints(namespace: dict) -> None:
+    """
+    顶层执行后，主动调用样本"自己定义、可无参调用"的入口函数。
+
+    白话讲解（为什么需要）：
+    - 很多恶意技能把窃密/外传逻辑写在 main()/run()/process_commands() 等函数里，
+      指望 agent 在使用技能时去调用；而我们只 `runpy` 跑模块顶层的话，这些函数
+      只被"定义"、不会被"执行"，运行时观测就抓不到它们的恶意行为。
+    - 这里模拟"agent 调用技能入口"：只调用**样本自己定义**（非 import 进来的库函数）、
+      且**无需参数**就能调用的函数，优先常见入口名。全程在隔离沙箱内（断网+限资源）。
+    - 单个入口报错不影响其它入口与已采集到的行为。
+    """
+    funcs: dict[str, object] = {}
+    for name, obj in list(namespace.items()):
+        if name.startswith("__"):
+            continue
+        if not inspect.isfunction(obj):
+            continue
+        code = getattr(obj, "__code__", None)
+        # 只调用样本自己定义的函数（co_filename 指向 skill_payload.py），
+        # 不去碰 import 进来的第三方/标准库函数，避免误触框架副作用。
+        if code is None or not code.co_filename.endswith(_PAYLOAD_BASENAME):
+            continue
+        if _no_required_args(obj):
+            funcs[name] = obj
+
+    # 优先按常见入口名调用，其余样本函数兜底补充
+    ordered = [funcs[n] for n in _ENTRYPOINT_PRIORITY if n in funcs]
+    ordered += [f for n, f in funcs.items() if n not in _ENTRYPOINT_PRIORITY]
+
+    for func in ordered[:_MAX_ENTRYPOINTS]:
+        try:
+            func()
+        except SystemExit:
+            pass
+        except BaseException:
+            # 入口自身报错不影响探针继续观测其它入口
+            pass
 
 
 def _stringify(value, limit: int = 300) -> str:
@@ -100,6 +168,8 @@ def main() -> int:
     markers = list(config.get("markers", []))
     env_vars = dict(config.get("env_vars", {}))
     payload_path = config["payload_path"]
+    # 是否在顶层执行后主动调用样本定义的入口函数（默认开启）
+    invoke_entrypoints = bool(config.get("invoke_entrypoints", True))
 
     events: list[dict] = []
     identity_written: list[str] = []
@@ -168,7 +238,12 @@ def main() -> int:
     # 2) 执行目标技能代码（全程开启采集）
     capturing["on"] = True
     try:
-        runpy.run_path(payload_path, run_name="__main__")
+        # 先跑模块顶层；run_path 返回模块的全局命名空间（含其中定义的函数）
+        module_ns = runpy.run_path(payload_path, run_name="__main__")
+        # 再模拟"agent 调用技能入口"：调用样本自己定义、可无参调用的入口函数，
+        # 触发那些藏在函数体里、顶层不会执行的窃密/外传逻辑。
+        if invoke_entrypoints and isinstance(module_ns, dict):
+            _invoke_entrypoints(module_ns)
     except SystemExit:
         pass
     except BaseException:
