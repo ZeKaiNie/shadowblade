@@ -75,7 +75,21 @@ def verify_conformance(
 
     白话讲解：这是把"声明"和"观测"两条线汇合、做减法、下判断的地方。
     """
-    declared = normalize_declared(declared_capabilities)
+    return verify_conformance_caps(
+        normalize_declared(declared_capabilities), dynamic_result
+    )
+
+
+def verify_conformance_caps(
+    declared: set[Capability],
+    dynamic_result: DynamicAuditResult,
+) -> ConformanceResult:
+    """
+    一致性核验核心（直接接收已归一化的声明能力集合）。
+
+    白话讲解：与 verify_conformance 相同，只是声明侧已由调用方归一化好
+    （例如已合并了 allowed-tools 与正文关键词），避免二次解析。
+    """
     observed = observed_from_audit(dynamic_result)
 
     undeclared = observed - declared

@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import re
 from enum import Enum
 
 from src.dynamic_engine.models import (
@@ -90,6 +91,59 @@ def normalize_declared(declared: list[str]) -> set[Capability]:
             if any(kw in text for kw in keywords):
                 result.add(capability)
     return result
+
+
+# Claude/agent-skill 的 allowed-tools 工具名 → 能力（按 token 精确匹配，不用子串）
+_ALLOWED_TOOL_MAP: dict[str, Capability] = {
+    "webfetch": Capability.NETWORK,
+    "websearch": Capability.NETWORK,
+    "fetch": Capability.NETWORK,
+    "bash": Capability.SUBPROCESS,
+    "shell": Capability.SUBPROCESS,
+    "write": Capability.FILE_WRITE,
+    "edit": Capability.FILE_WRITE,
+    "multiedit": Capability.FILE_WRITE,
+    "notebookedit": Capability.FILE_WRITE,
+    "read": Capability.FILE_READ,
+    "grep": Capability.FILE_READ,
+    "glob": Capability.FILE_READ,
+    "notebookread": Capability.FILE_READ,
+}
+
+
+def parse_allowed_tools(skill_md_text: str) -> set[Capability]:
+    """
+    从 SKILL.md 的 YAML front matter `allowed-tools` 字段解析声明能力。
+
+    白话讲解：Anthropic Agent Skills 用 `allowed-tools: Read, WebFetch, Bash(diff:*)`
+    这种写法声明技能被授予哪些工具。把每个工具名（去掉 Bash(...) 里的括号参数）
+    映射到统一能力：WebFetch/WebSearch→network，Bash→subprocess，Write/Edit→file_write，
+    Read/Grep/Glob→file_read。
+    """
+    match = re.search(
+        r"^allowed-tools:\s*(.+?)\s*$", skill_md_text, re.MULTILINE | re.IGNORECASE
+    )
+    if not match:
+        return set()
+
+    raw = match.group(1)
+    result: set[Capability] = set()
+    for token in raw.split(","):
+        # 去掉 Bash(diff:*) 这类括号参数，只留工具名
+        name = re.sub(r"\(.*?\)", "", token).strip().lower()
+        capability = _ALLOWED_TOOL_MAP.get(name)
+        if capability is not None:
+            result.add(capability)
+    return result
+
+
+def declared_from_skill_md(skill_md_text: str, declared_strings: list[str]) -> set[Capability]:
+    """
+    综合 SKILL.md 的两处声明来源，得到完整的声明能力集合：
+    1. `allowed-tools` 字段（agent-skill 授权）；
+    2. 正文/其它 front matter 里抽取到的能力关键词（declared_strings）。
+    """
+    return parse_allowed_tools(skill_md_text) | normalize_declared(declared_strings)
 
 
 # 动态引擎行为类型 → 能力
