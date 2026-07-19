@@ -114,6 +114,10 @@ class DynamicAuditResult:
     findings: list[DynamicFinding] = field(default_factory=list)
     honeypot_triggered: bool = False
     network_targets: list[str] = field(default_factory=list)
+    # 外联到的"信誉可疑目标"（命中已知恶意/外传 IOC 的网络目标）
+    # 白话讲解：即便技能"声明"了网络权限，只要外联到 C2/webhook/paste/隧道等可疑目标，
+    # 仍是强恶意信号——正常技能几乎不会碰这些地方。
+    suspicious_network_targets: list[str] = field(default_factory=list)
     subprocess_calls: list[str] = field(default_factory=list)
     identity_files_written: list[str] = field(default_factory=list)
     # 读取到的敏感凭据/蜜罐诱饵文件路径（读它们=在翻凭据，映射为 credential_access 能力）

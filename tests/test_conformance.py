@@ -136,6 +136,28 @@ class TestVerifyConformance:
         assert c.decision == "deny"
         assert c.deviation_score >= 0.6
 
+    def test_declared_network_but_suspicious_target_flagged(self):
+        # 如实声明了网络权限，但外联到已知恶意/外传目标 → 不该被"已声明"洗白，至少 review
+        result = DynamicAuditResult(
+            executed=True,
+            network_targets=["webhook.site/abc:443"],
+            suspicious_network_targets=["webhook.site/abc:443"],
+        )
+        c = verify_conformance(["network access"], result)
+        assert c.undeclared == []  # 网络已声明，无未声明能力
+        assert c.suspicious_targets == ["webhook.site/abc:443"]
+        assert c.decision in ("review", "deny")
+
+    def test_undeclared_network_plus_suspicious_target_deny(self):
+        # 未声明网络 + 外联可疑目标 → 叠加升级为 deny
+        result = DynamicAuditResult(
+            executed=True,
+            network_targets=["api.telegram.org/bot:443"],
+            suspicious_network_targets=["api.telegram.org/bot:443"],
+        )
+        c = verify_conformance([], result)
+        assert c.decision == "deny"
+
     def test_identity_write_high_risk(self):
         # 未声明的身份文件篡改（控制面攻击）→ 高偏差
         result = DynamicAuditResult(

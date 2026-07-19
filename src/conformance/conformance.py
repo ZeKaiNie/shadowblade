@@ -36,6 +36,12 @@ _DEVIATION_WEIGHTS: dict[Capability, float] = {
     Capability.FILE_WRITE: 0.15,          # 私自写文件（相对温和）
 }
 
+# 可疑外传目标信誉信号的权重（与"是否声明网络"无关）
+# 白话讲解：连到 C2/webhook/paste/隧道等已知恶意/外传目标本身就是强信号——
+# 即使技能如实声明了网络权限，也不该被"已声明"洗白。单独达到 review，
+# 叠加未声明网络或蜜罐命中则升级为 deny。
+_SUSPICIOUS_TARGET_WEIGHT = 0.45
+
 # 决策阈值
 _DENY_THRESHOLD = 0.6
 _REVIEW_THRESHOLD = 0.25
@@ -49,6 +55,9 @@ class ConformanceResult(BaseModel):
     unused: list[str] = Field(description="声明了但未观测到的能力")
     undeclared_sensitive: list[str] = Field(description="未声明且属敏感的能力")
     honeypot_triggered: bool = Field(default=False, description="蜜罐是否命中")
+    suspicious_targets: list[str] = Field(
+        default_factory=list, description="外联到的信誉可疑目标（与是否声明网络无关）"
+    )
     deviation_score: float = Field(
         default=0.0, ge=0.0, le=1.0, description="偏差风险分 0-1"
     )
@@ -116,9 +125,20 @@ def verify_conformance_caps(
         score += 0.15
         reasons.append("组合证据：未声明联网 + 蜜罐命中 → 疑似凭据外传链条（+0.15）")
 
+    # 4) 可疑外传目标信誉：与"是否声明网络"无关的强信号
+    # 白话讲解：正常技能几乎不会连 C2/webhook/paste/隧道服务；命中即使已声明网络也要计分。
+    suspicious_targets = list(dynamic_result.suspicious_network_targets)
+    if suspicious_targets:
+        score += _SUSPICIOUS_TARGET_WEIGHT
+        preview = ", ".join(suspicious_targets[:2])
+        reasons.append(
+            f"外联信誉可疑目标（C2/外传服务，无论是否声明网络）：{preview}"
+            f"（+{_SUSPICIOUS_TARGET_WEIGHT:.2f}）"
+        )
+
     score = min(score, 1.0)
 
-    # 4) 决策
+    # 5) 决策
     if score >= _DENY_THRESHOLD or honeypot:
         decision = "deny"
     elif score >= _REVIEW_THRESHOLD:
@@ -136,6 +156,7 @@ def verify_conformance_caps(
         unused=_cap_names(unused),
         undeclared_sensitive=_cap_names(undeclared_sensitive),
         honeypot_triggered=honeypot,
+        suspicious_targets=suspicious_targets,
         deviation_score=score,
         decision=decision,
         reasons=reasons,
