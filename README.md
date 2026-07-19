@@ -1,110 +1,99 @@
 # 🛡️ 影刃卫士 ShadowBlade Guardian
 
-> **AI 助手请先读 `docs/INDEX.md`**，那是项目知识库入口，按需加载子文件。
+> **AI 助手请先读 `docs/INDEX.md`**（知识库入口）与根目录 `AGENTS.md`（协作/学术诚信规则），按需加载子文件。
+> 当前研究主线、真实进度见下文「研究主线」与 `docs/progress.md` 顶部。
 
-基于 Qwen3-4B 的 AI Agent 供应链安全审计系统，以 OpenClaw/ClawHub 13,000+ 真实技能为审计对象。
+面向 **AI Agent Skills（Anthropic Skills / SKILL.md、ChatGPT Apps）** 供应链与运行时安全的**审计与防御研究系统**。目标是产出可复现、可发表（现实定级 **CCF-C / 中文核心 / SCI Q3–Q2**，先挂 arXiv preprint 抢占位）的方法与实验。
 
-## 项目简介
+## 研究主线（当前锁定：A + B）
 
-AI Agent 技能市场（如 ClawHub）正在快速增长，但缺乏系统化的安全审计手段。影刃卫士通过**静态分析 + 动态沙箱 + AI 研判**三引擎协同，自动检测技能中的恶意代码、数据窃密、提示词注入等安全威胁。
+赛道到 2026 年已较拥挤（USENIX Sec'26《Do Not Mention…》、MalSkillBench、BIV 等多为预印本）。我们选一个"窄而实、别人没合起来做"的缝隙，用**同一套 per-run 随机蜜罐/canary 污点取证方法**打两个面：
 
-核心思路：不止"猜"技能是不是恶意，而是把它放进**布满蜜罐诱饵的隔离沙箱**里真实执行，用 CPython 审计钩子捕获运行时行为——一旦它去偷假凭据并往外发，蜜罐随机标记会在网络/子进程参数里现形，形成"抓现行"的确凿证据。
+- **方向 A（保底 · 有公开数据）——运行时接地的能力一致性核验 + 蜜罐取证 + 阻断**
+  从 `SKILL.md`/`allowed-tools`/元数据抽取**声明能力**，在隔离沙箱真实执行观测**实际能力**，比对差异；每次执行注入随机蜜罐标记（假凭据/身份文件），命中即为"抓现行"的确凿外传证据 → 确定性、可解释的 `allow/review/deny`。差异化：BIV 是**静态预测**能力且只核验，我们**运行时真实观测 + 蜜罐取证 + 阻断**，专打 SOTA 崩掉的 prompt-injection / agent 控制面（MalSkillBench B10–B15）。
+- **方向 B（新颖 · 需自建测试台）——跨 App 共享上下文投毒的检测/防御/基准**
+  ChatGPT Apps 多 App 共享同一段扁平上下文，恶意 App 可投毒影响后续良性 App（Confused ChatGPT 只做了攻击，检测/防御/基准空白）。我们搭**开源替身测试台**，把 canary 污点思路迁移做跨 App 污点追踪与防御基准。**B 不阻塞 A**：A 先锁保底，B 拉高上限。
+
+> 详细竞品调研、缝隙分析与研究计划见 `docs/planning/`（`2026现状调研与论文方向修正.md`、`方向A_运行时接地能力一致性核验_研究计划.md`、`方向决策_全候选彻底对比.md`）。
+
+## 数据集（真实公开，不再自造）
+
+- **MalSkillBench**（arXiv 2606.07131）：本地统计 **恶意 3,944 + 良性 4,000 = 7,944**，文件夹名编码三维标签（向量 CI/PI/MIXED × 行为 B1–B15 × 插入策略），**B10–B15 = agent 控制面攻击**（主攻靶子），并自带十余个 baseline（guarddog / llama-guard-3 / llm-guard / snyk-agent-scan 等）。
+- **MaliciousAgentSkillsBench**（USENIX Sec'26）：98,380 快照 + 157 确认恶意，作跨数据集泛化验证。
+- 数据放在已 gitignore 的 `datasets_external/`，**恶意样本只在隔离沙箱执行，不入库、不重分发、不上传闭源云**。
 
 ## 开发状态
 
-| 引擎 / 模块 | 状态 | 说明 |
+| 模块 | 状态 | 说明 |
 |------|------|------|
-| 静态审计引擎 | ✅ 已完成 | SKILL.md 解析 + Semgrep/Bandit/pip-audit + 隐写检测 + LLM 语义研判 + 风险评分 |
-| 动态审计引擎 | 🟡 最小闭环已落地 | Docker 沙箱（断网/限资源/即焚）+ 蜜罐诱饵 + 审计钩子行为监控 + 研判打分，已接入综合评分 |
-| ├ 内核级监控 (eBPF/seccomp) | ⬜ 待开发 | 补 Python 审计钩子的盲区（非 Python/原生载荷、抗规避） |
-| ├ libfaketime 时间伪造 | ⬜ 待开发 | 用于触发延迟激活的恶意代码 |
-| ├ 多次执行行为对比 | ⬜ 待开发 | 正常 vs 伪造 48h 后行为差异 |
-| 数据集 + 评测框架 | ⬜ 待开发（论文生命线） | 攻击分类学 + 数百级标注样本 + P/R/F1/FPR + baseline/消融 |
-| AI 研判引擎 | 🟡 部分 | RAG 检索/信任评分已有骨架 |
-| 数据接入 / FastAPI / Streamlit | ⬜ 待开发 | demo 级，非论文关键路径 |
+| 数据加载器（MalSkillBench） | ✅ | 解析目录名标签 → 统一 `MalSkillSample`；实测 3,944 恶意 + 4,000 良性 |
+| 评测框架 + baseline 复现 | ✅ | P/R/F1/FPR/混淆矩阵；复现官方 baseline 对照表 |
+| 声明能力抽取 + 一致性核验 | ✅ | 统一能力分类学（含 `identity_write`=控制面）+ `allowed-tools` 解析 + 确定性决策 |
+| 动态沙箱 + 蜜罐 + 依赖兜底 shim | ✅ | Docker `--network none`/限资源 + `sys.addaudithook` 行为探针 + 随机蜜罐 + 缺库 shim |
+| 静态引擎 | ✅ | SKILL.md 解析 + Semgrep/Bandit/pip-audit + LLM 语义研判（作对照/融合） |
+| AI 研判（RAG） | 🟡 | ChromaDB + BGE-small 骨架 |
+| **诱饵扩展**（假钱包/助记词/`~/.aws`/浏览器路径） | ⬜ 下一步 | 对上加密货币窃取主流靶子，提蜜罐命中率与召回 |
+| 可疑目标信誉 + 下载-执行链规则 | ⬜ | 进一步提召回 |
+| 方向 B 开源测试台 + 防御基准 | ⬜ | 跨 App 共享上下文投毒 |
+| 消融 + 跨数据集泛化 + 论文初稿 | ⬜ | 只用真实跑出的数据 |
 
-> 详细进度见 `docs/progress.md`；动态引擎设计见 `docs/modules/dynamic_engine.md`；整体重构与论文规划见 `docs/planning/`。
+## 第一手实验结果（真实 · 未编造）
+
+真实 MalSkillBench **50 恶意 + 50 良性**（含 Python 脚本可执行子集），隔离 Docker 执行、固定随机种子：
+
+| 指标 | 值 |
+|------|----|
+| Precision | **1.00** |
+| FPR | **0.00**（良性 50 个 0 误报） |
+| Recall | **0.16** |
+| F1 | 0.28 |
+| 蜜罐命中 | 0 |
+| 混淆矩阵 | TP=8, FP=0, FN=42, TN=50 |
+
+**诚实定位**：方向 A 目前是**高精度、零误报、低召回的确认层**（不取代最强扫描器，而是提供确定性、可解释、几乎不误报的运行时确认）。召回低的真实原因与下一步（诱饵扩展等）见 `docs/planning/小批实验结果_方向A.md`。
+
+> ❌ 旧文档中"15 样本 / 100% 检出 / 0% 误报"等为编造指标，**已作废，不得引用**。
 
 ## 技术栈
 
-- **模型**: Qwen3-4B AWQ 4-bit 量化 (vLLM 推理)
-- **静态审计**: Semgrep + Bandit + pip-audit + LLM Guard
-- **动态审计**: Docker 沙箱 + CPython 审计钩子（`sys.addaudithook`）+ 蜜罐（内核级监控 / libfaketime 规划中）
-- **AI 研判**: ChromaDB + BGE-small + Qwen3-4B RAG
-- **后端**: FastAPI | **前端**: Streamlit
+- **语言**：Python（类型注解 + Pydantic），代码带中文注释。
+- **数据/评测**：MalSkillBench + MaliciousAgentSkillsBench；自研 `src/evaluation`（P/R/F1/FPR）。
+- **动态沙箱**：Docker（`--network none` + 限内存/CPU/PID + 即焚 workspace）+ CPython 审计钩子（`sys.addaudithook`）+ per-run 随机蜜罐 + 依赖兜底 shim。
+- **静态**：Semgrep + Bandit + pip-audit + LLM Guard。
+- **模型**：本地 Qwen3-4B AWQ（vLLM）；云端多模型经 LiteLLM 切换（对比实验用；恶意样本默认不上传闭源云）。
 
 ## 项目结构
 
 ```
 src/
-├── static_engine/    # 静态审计引擎（Semgrep/Bandit/pip-audit/LLM Guard/LLM语义审查）
-├── dynamic_engine/   # 动态审计引擎（Docker沙箱/蜜罐/审计钩子行为监控）
-├── ai_engine/        # AI研判引擎（RAG检索/信任评分/报告生成）
-├── data_ingestion/   # 数据接入（ClawHub爬虫/SKILL.md解析）
-├── api/              # FastAPI 后端API
-└── dashboard/        # Streamlit 可视化仪表盘
-config/               # 配置文件 + Semgrep自定义规则
-models/               # Qwen3-4B 量化模型
-data/                 # 数据集（恶意/良性样本 + RAG知识库）
-sandbox/              # Docker沙箱相关文件
-tests/                # 测试
+├── data_ingestion/    # MalSkillBench 数据加载器（目录名标签解析）✅
+├── evaluation/        # 评测框架（P/R/F1/FPR）+ baseline 复现 ✅
+├── conformance/       # 声明能力抽取 + 声明↔观测一致性核验 + 决策 ✅
+├── dynamic_engine/    # Docker 沙箱 + 蜜罐 + 审计钩子 + 依赖兜底 shim ✅
+├── static_engine/     # 静态审计（Semgrep/Bandit/pip-audit/LLM 语义）✅
+├── ai_engine/         # RAG 研判（ChromaDB + BGE-small）🟡
+├── api/ dashboard/    # FastAPI / Streamlit（demo，非论文关键路径）⬜
+scripts/               # run_pilot_batch.py（真实小批实验）等
+datasets_external/     # 公开数据集（gitignore，不入库）
+docs/                  # INDEX.md 知识库入口 + planning/ 研究计划 + progress.md
+tests/                 # 单元 + Docker 集成测试（skipif 保护）
 ```
 
-## 快速开始
+## 运行测试
 
 ```bash
-# 1. 创建虚拟环境
-python3 -m venv .venv
 source .venv/bin/activate
-
-# 2. 安装依赖
-pip install -r requirements.txt
-
-# 3. 启动 vLLM 模型服务（需要GPU）
-# python -m vllm.entrypoints.openai.api_server --model models/qwen3-4b-awq ...
-
-# 4. 启动后端
-# uvicorn src.api.main:app --host 0.0.0.0 --port 8888
-
-# 5. 启动仪表盘
-# streamlit run src/dashboard/app.py
+python -m pytest -q                       # 全套（需 chromadb 才跑 RAG 用例）
+python -m pytest tests/test_conformance.py tests/test_sandbox_shims.py -v
 ```
 
-### 运行测试
+## 安全提示
 
-```bash
-# 全套测试（需要 chromadb 才能跑 RAG 相关用例）
-python -m pytest -q
-# 动态引擎测试（Docker 集成用例在无 Docker 时自动跳过）
-python -m pytest tests/test_dynamic_engine.py -v
-```
+动态引擎处理陌生/恶意代码**必须**在 Docker 隔离沙箱内执行（`--network none` + 限资源 + 即焚）；无 Docker 时不会自动在宿主机运行，除非显式 `allow_unsafe_subprocess=True`（仅供本地测试合成代码，**切勿用于真实恶意样本**）。
 
-### 用法示例
+## 团队 / 硬件
 
-```python
-from src.static_engine.pipeline import audit_skill
-
-# 静态 + 动态沙箱协同审计（默认关闭动态，显式开启）
-result = audit_skill(skill_md_content, enable_dynamic=True)  # 默认走 Docker，无 Docker 时优雅降级
-print(result.risk_level, result.risk_score)
-print(result.dynamic_findings)   # 动态发现（蜜罐命中/身份文件篡改/外联等）
-
-# 或单独调用动态引擎
-from src.dynamic_engine.pipeline import audit_dynamic
-dyn = audit_dynamic(code_blocks, code_languages, backend="docker")
-print(dyn.risk_score, dyn.honeypot_triggered, dyn.finding_texts)
-```
-
-> ⚠️ 安全提示：动态引擎默认必须在 Docker 隔离沙箱中执行陌生代码；无 Docker 时不会自动在宿主机运行，除非显式 `allow_unsafe_subprocess=True`（仅供本地测试，切勿用于真实恶意样本）。
-
-## 硬件要求
-
-- NVIDIA GPU ≥ 8GB 显存（RTX 4060 Laptop 可运行）
-- WSL2 + Ubuntu 22.04（推荐）
-
-## 团队
-
-四川轻化工大学 大创项目团队
+四川轻化工大学 大创项目团队（3 人）；硬件 RTX 4060 Laptop 8GB，导师可提供云 GPU。
 
 ## 许可证
 
