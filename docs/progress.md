@@ -144,3 +144,53 @@
 | 单卡 4060 8GB 运行 | 稳定 | 已验证 | ✅ |
 
 注：当前样本量较小（10+5），需扩充至 ≥50 样本验证泛化性
+
+---
+
+## 2026-07-18 P0：数据集 + 评测框架（方向 A）
+
+> ⚠️ **作废声明**：本文件上方"量化指标目标 vs 当前"里的
+> "SKILL.md 恶意检出率 100%（10/10）/ 静态误报率 0%（0/5）"等数字，
+> 系早期小样本/编造指标，**一律作废，不得写入论文**。以下为真实、可复现的进展。
+
+### 已完成（本地已验证，非编造）
+- **MalSkillBench 数据加载器** `src/data_ingestion/malskillbench_loader.py`：
+  解析技能文件夹 → 统一 `MalSkillSample`；从文件夹名解析三维分类（向量 CI/PI/MIXED ×
+  行为 B1–B15 × 插入策略），识别 B10–B15 = agent 控制面难子集。
+  实测统计：**恶意 3,944 + 良性 4,000 = 7,944**，SKILL.md 缺失 0。
+- **评测框架** `src/evaluation/`：
+  - `metrics.py`：P/R/F1/FPR/Accuracy + 混淆矩阵（正类=恶意），纯计算可复用。
+  - `malskillbench_baselines.py`：调用 MalSkillBench 官方汇总脚本复现 baseline 对照表。
+- **Baseline 复现**（来源 MalSkillBench，须注明）：现有工具普遍"高精度低召回"或"高召回高误报"，
+  最佳技能安全 LLM 扫描器 F1≈0.81–0.89 但误报 15%–37%。详见
+  `docs/planning/baseline复现结果_MalSkillBench.md`。
+- 测试：数据加载器 + 评测框架共新增 21 测试，全过，ruff 干净。
+
+### 下一步
+- 声明能力抽取（SKILL.md → declared capabilities）静态 + LLM。
+- 声明 vs 运行时观测 的类型化一致性比对（接现有 dynamic_engine + 蜜罐）。
+- agent 控制面 B10–B15 子集的 baseline 逐样本重算。
+- 50 恶意 / 50 良性 端到端小批 sanity check。
+
+## 2026-07-18 方法核心：声明-观测一致性核验 + 决策（方向 A）
+
+### 已完成（本地已验证，含真实 Docker 端到端）
+- **统一能力分类学** `src/conformance/capabilities.py`：7 类能力（network/file_read/file_write/
+  subprocess/dynamic_code/credential_access/identity_write），声明侧与观测侧共用；
+  提供 `normalize_declared()`（声明字符串→能力）与 `observed_from_audit/events()`（沙箱观测→能力）。
+- **一致性核验** `src/conformance/conformance.py`：
+  类型化比对 undeclared = observed − declared、unused = declared − observed；
+  未声明敏感能力加权 + 蜜罐命中(canary)确凿证据 → 确定性、可解释的 allow/review/deny 决策
+  （identity_write 权重最高，命中蜜罐一律 deny）。
+- **端到端管线** `src/conformance/pipeline.py`：SKILL.md→声明抽取→带蜜罐 Docker 沙箱观测→核验→决策。
+- **真实 Docker 冒烟**（`scripts/e2e_smoke_conformance.py`，仅自写合成代码，非真实恶意样本）：
+  - 良性 `print` → executed, deviation=0.00, **DECISION=allow**；
+  - "读蜜罐 OPENAI_API_KEY 并 urllib 外传"模拟 → **honeypot_triggered=True**，
+    undeclared={credential_access, network}, deviation=1.00, **DECISION=deny**。
+  断网(--network none)拦住真实传输，但"读凭据+外传企图"被审计钩子+蜜罐标记坐实。
+- 测试：conformance 13 + 端到端 Docker 2（skipif 保护），全过；全量 114 passed + 10 skipped，ruff 干净。
+
+### 下一步
+- agent 控制面 B10–B15 子集的 baseline 逐样本重算（凸显 SOTA 崩点）。
+- 在真实 MalSkillBench 样本上跑 50 恶意/50 良性小批（隔离容器，谨慎执行 CI 类可执行样本；
+  PI 类无可执行代码的走"声明+静态+LLM"路径），产出初步 P/R/F1 与决策分布。

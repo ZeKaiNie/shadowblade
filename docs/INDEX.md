@@ -58,6 +58,8 @@ config/settings.yaml   # 全局配置
 ```
 
 ### 最近变更
+- 07-18 **P0 数据+评测**：MalSkillBench 数据加载器（3,944恶意+4,000良性）+ 评测框架（P/R/F1/FPR）+ baseline 复现表，见 `src/data_ingestion/malskillbench_loader.py`、`src/evaluation/`、`docs/planning/baseline复现结果_MalSkillBench.md`
+- 07-18 **方向决策**：全候选彻底对比后锁定 **A（保底）+ B 跨App上下文投毒（新颖）**，见 `docs/planning/方向决策_全候选彻底对比.md`、`docs/planning/新兴风口调研_下一代Agent安全方向.md`
 - 07-18 **联网竞品调研**：核实赛道已饱和（USENIX'26/MalSkillBench/BIV 等预印本），锁定方向 A（运行时接地能力一致性核验+蜜罐取证+阻断），拉取公开数据集，见 `docs/planning/2026现状调研与论文方向修正.md` + `docs/planning/方向A_运行时接地能力一致性核验_研究计划.md`
 - 07-18 项目整理：移除个人知识库 `knowledge/`、合并规则为 `AGENTS.md`、精简 `PROJECT_CONTEXT.md`、收录 `docs/planning/`、`research.md` 加未核实警告
 - 07-18 动态引擎最小闭环落地并接入综合评分（PR #1 已合入 main）
