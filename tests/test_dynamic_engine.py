@@ -59,6 +59,18 @@ class TestHoneypot:
         assert hp2.markers == hp.markers
         assert hp2.env_vars == hp.env_vars
 
+    def test_expanded_decoys_cover_wallet_and_browser(self):
+        """诱饵扩展后应覆盖加密钱包/助记词与浏览器登录数据等主流窃取靶子。"""
+        hp = build_honeypot()
+        paths = " ".join(hp.files.keys())
+        assert ".aws/credentials" in paths
+        assert "wallet_seed.txt" in paths
+        assert "Login Data" in paths
+        # 每个诱饵文件仍然各自嵌入了唯一标记
+        blob = " ".join(hp.files.values())
+        for m in hp.markers:
+            assert m in blob or any(m in v for v in hp.env_vars.values())
+
 
 # ---------- 探针输出解析 ----------
 
@@ -146,6 +158,22 @@ class TestMonitor:
         res = analyze(rr)
         assert any("恶意域名" in f.message for f in res.findings)
         assert res.risk_score >= 0.3
+
+    def test_credential_read_paths_recorded(self):
+        """读取敏感凭据/诱饵文件应被记录到 credential_read_paths（用于映射 credential_access）。"""
+        rr = SandboxRunResult(
+            executed=True, backend="docker",
+            events=[
+                BehaviorEvent(BehaviorType.FILE_OPEN, "open", ["/work/.aws/credentials"]),
+                BehaviorEvent(BehaviorType.FILE_OPEN, "open", ["/work/wallet_seed.txt"]),
+                BehaviorEvent(BehaviorType.FILE_OPEN, "open", ["/work/notes.txt"]),
+            ],
+        )
+        res = analyze(rr)
+        joined = " ".join(res.credential_read_paths)
+        assert ".aws/credentials" in joined
+        assert "wallet_seed.txt" in joined
+        assert "notes.txt" not in joined  # 普通文件不算凭据读取
 
     def test_sensitive_read_plus_network_combo(self):
         rr = SandboxRunResult(

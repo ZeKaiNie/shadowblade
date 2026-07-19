@@ -18,20 +18,56 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # 默认蜜罐环境变量名（值会在运行时填入带随机标记的假凭据）
+# 白话讲解：覆盖 MalSkillBench 里最常被窃取的凭据类环境变量（API key / 云 / 钱包私钥等）
 DEFAULT_ENV_KEYS = [
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "AWS_SECRET_ACCESS_KEY",
+    "AWS_ACCESS_KEY_ID",
     "OPENCLAW_API_KEY",
+    "GITHUB_TOKEN",
+    "HF_TOKEN",
+    "SLACK_TOKEN",
+    "DISCORD_TOKEN",
+    "STRIPE_SECRET_KEY",
+    "NPM_TOKEN",
+    "GOOGLE_API_KEY",
+    "WALLET_PRIVATE_KEY",
+    "MNEMONIC",
 ]
 
 # 默认蜜罐假文件（相对沙箱工作区的路径 → 文件用途）
-# 白话讲解：这些路径对应 ClawHavoc 真实窃取目标（SSH 密钥、.env、ClawHub 凭据）
+# 白话讲解：沙箱内 HOME=/work，故这些相对路径正好落在 `~/...`。
+# 覆盖 MalSkillBench 主流窃取靶子：加密货币钱包/助记词（约 86% 样本）、
+# 浏览器登录数据/Cookie、云与开发者凭据、SSH/.env/ClawHub 凭据。
+# 每个文件里都埋了独立随机标记：被读取即"翻凭据"，标记外传即"抓现行"。
 DEFAULT_FAKE_FILES = {
+    # —— SSH / 通用凭据（ClawHavoc 原始靶子）——
     ".ssh/id_rsa": "ssh_private_key",
     ".env": "dotenv_credentials",
     ".clawdbot/.env": "clawhub_credentials",
     ".config/openclaw/credentials.json": "openclaw_oauth",
+    # —— 云 / 开发者凭据 ——
+    ".aws/credentials": "aws_credentials",
+    ".config/gcloud/application_default_credentials.json": "gcloud_credentials",
+    ".git-credentials": "git_credentials",
+    ".npmrc": "npm_token",
+    ".pypirc": "pypi_token",
+    ".docker/config.json": "docker_auth",
+    ".kube/config": "kube_config",
+    # —— 加密货币钱包 / 助记词（MalSkillBench 主流靶子）——
+    "wallet_seed.txt": "wallet_seed_phrase",
+    ".electrum/wallets/default_wallet": "electrum_wallet",
+    ".ethereum/keystore/UTC--fake--keystore.json": "ethereum_keystore",
+    ".config/Exodus/exodus.wallet/seed.seco": "exodus_wallet_seed",
+    ".config/Bitcoin/wallet.dat": "bitcoin_wallet",
+    # MetaMask 浏览器扩展本地存储（nkbihf... 为 MetaMask 官方扩展 ID）
+    ".config/google-chrome/Default/Local Extension Settings/"
+    "nkbihfbeogaeaoehlefnkodbefgpgknn/000003.log": "metamask_vault",
+    # —— 浏览器登录数据 / Cookie ——
+    ".config/google-chrome/Default/Login Data": "chrome_login_data",
+    ".config/google-chrome/Default/Cookies": "chrome_cookies",
+    ".mozilla/firefox/fake.default-release/logins.json": "firefox_logins",
 }
 
 
@@ -107,18 +143,44 @@ def build_honeypot(
     for rel_path, label in fake_files.items():
         marker = _new_marker()
         markers.append(marker)
-        if rel_path.endswith(".json"):
-            files[rel_path] = json.dumps({"token": marker, "label": label})
-        elif "id_rsa" in rel_path:
-            files[rel_path] = (
-                "-----BEGIN OPENSSH PRIVATE KEY-----\n"
-                f"{marker}\n"
-                "-----END OPENSSH PRIVATE KEY-----\n"
-            )
-        else:
-            files[rel_path] = f"# {label}\nSECRET_TOKEN={marker}\n"
+        files[rel_path] = _fake_file_content(rel_path, label, marker)
 
     return Honeypot(env_vars=env_vars, files=files, markers=markers)
+
+
+def _fake_file_content(rel_path: str, label: str, marker: str) -> str:
+    """
+    按文件类型生成"像真的"假凭据内容，并把随机标记埋进去。
+
+    白话讲解：内容尽量贴近真实格式（助记词/keystore/AWS 凭据等），
+    好让按格式解析的窃密代码愿意"下手"；但真正用于取证的只有 marker ——
+    一旦 marker 出现在网络/子进程/写入参数里，即凭据外传的铁证。
+    """
+    if rel_path.endswith(".json") or label == "docker_auth":
+        return json.dumps({"token": marker, "label": label, "auth": marker})
+    if "id_rsa" in rel_path:
+        return (
+            "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+            f"{marker}\n"
+            "-----END OPENSSH PRIVATE KEY-----\n"
+        )
+    if label in ("wallet_seed_phrase", "exodus_wallet_seed", "electrum_wallet"):
+        # 12 词助记词占位（最后一段嵌标记，供外传比对）
+        return (
+            "abandon ability able about above absent absorb abstract "
+            f"absurd abuse access {marker}\n"
+        )
+    if label == "aws_credentials":
+        return (
+            "[default]\n"
+            "aws_access_key_id = AKIAFAKE0000000000EX\n"
+            f"aws_secret_access_key = {marker}\n"
+        )
+    if label == "git_credentials":
+        return f"https://oauthuser:{marker}@github.com\n"
+    if label == "npm_token":
+        return f"//registry.npmjs.org/:_authToken={marker}\n"
+    return f"# {label}\nSECRET_TOKEN={marker}\n"
 
 
 def deploy_files(honeypot: Honeypot, workspace: str | Path) -> list[Path]:

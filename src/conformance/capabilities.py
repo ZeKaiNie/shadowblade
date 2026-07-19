@@ -178,7 +178,8 @@ def observed_from_audit(result: DynamicAuditResult) -> set[Capability]:
     - network_targets → NETWORK
     - subprocess_calls → SUBPROCESS
     - identity_files_written → IDENTITY_WRITE（篡改身份/记忆 = 控制面攻击）
-    - honeypot_triggered → CREDENTIAL_ACCESS（读了假凭据）
+    - honeypot_triggered / credential_read_paths → CREDENTIAL_ACCESS
+      （命中蜜罐外传，或读取了敏感凭据/诱饵文件 = 在翻凭据）
     - findings 里带的 behavior 类型 → 兜底补充
     """
     caps: set[Capability] = set()
@@ -188,7 +189,7 @@ def observed_from_audit(result: DynamicAuditResult) -> set[Capability]:
         caps.add(Capability.SUBPROCESS)
     if result.identity_files_written:
         caps.add(Capability.IDENTITY_WRITE)
-    if result.honeypot_triggered:
+    if result.honeypot_triggered or result.credential_read_paths:
         caps.add(Capability.CREDENTIAL_ACCESS)
     for finding in result.findings:
         capability = _BEHAVIOR_MAP.get(finding.behavior)
