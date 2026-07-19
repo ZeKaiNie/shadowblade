@@ -11,13 +11,28 @@
   - **B（新颖·需自建）**：跨 App 共享上下文投毒的检测/防御/基准（ChatGPT Apps）。**B 不阻塞 A**。
 - **已完成**：数据加载器 + 评测框架 + baseline 复现 + 声明能力抽取/`allowed-tools` + 一致性核验 + 决策 + 动态沙箱（含依赖兜底 shim）+ 端到端管线。
 - **真实第一手结果**（50 恶意/50 良性含脚本子集，隔离 Docker）：**P=1.00 / FPR=0.00 / Recall=0.16 / F1=0.28 / 蜜罐命中=0**，即**高精度零误报低召回确认层**（见 `docs/planning/小批实验结果_方向A.md`）。
-- **下一步（最高性价比提召回、保持零误报）**：① 诱饵扩展（假钱包/助记词/`~/.aws/credentials`/浏览器路径）；② 可疑目标信誉 + 下载-执行链规则；③ 重跑更大批；④ 消融 + 跨数据集泛化；⑤ 方向 B 测试台；⑥ 论文初稿 + arXiv preprint。
-- **PR 现状**：#4/#5/#6 均已合入 main。
+- **诱饵扩展（v2）已做**：蜜罐诱饵扩到 ~20 个（钱包/助记词/浏览器/云凭据）+ "读凭据即 credential_access" 信号 + IOC 扩充。**同 50/50 重跑 = 与 v1 完全一致（R 仍 0.16、蜜罐 0）**。逐样本核查发现**真正瓶颈是执行触发**：50 恶意样本运行时 0 个读到诱饵/命中蜜罐，因恶意逻辑多藏在未被调用的函数里（顶层直跑触发不到，见 `docs/planning/小批实验结果_方向A.md` 第 5 节）。诱饵机制本身已用合成样本验证正确。
+- **下一步（待用户确认）**：① **入口触发**（顶层跑完自动调用 `main()`/定义的函数，仍在 Docker 隔离内）——这才是提召回的关键；② 可疑目标信誉 + 下载-执行链规则；③ 重跑更大批；④ 消融 + 跨数据集泛化；⑤ 方向 B 测试台；⑥ 论文初稿 + arXiv preprint。
+- **PR 现状**：#4/#5/#6/#7 均已合入 main。
 - **协作**：Devin push GitHub 遇 403，改由用户在 antigravity `git am` 补丁开 PR；恶意样本只在 Docker 隔离执行。
 
 > ⚠️ 本文件下方「M2/M3、Hermes、MiMo key、M4-M8 里程碑、检出率 100%(10/10)」等属**历史存档，已不代表当前路线**，仅留作记录，勿作为接续指引。当前主线以本节 + `docs/planning/` 为准。
 
 ---
+
+### 2026-07-18 — 方向 A：诱饵扩展 v2 + 凭据读取信号（Devin）
+
+- ✅ **蜜罐诱饵扩展**（`dynamic_engine/honeypot.py`）：4→~20 个诱饵，覆盖加密钱包/助记词
+  (`wallet_seed.txt`/`.electrum`/`.ethereum/keystore`/Exodus/`wallet.dat`/MetaMask 扩展存储)、
+  浏览器登录数据/Cookie、云与开发者凭据(`.aws/credentials`/gcloud/`.git-credentials`/`.npmrc`/`.docker`/`.kube`)；
+  内容按格式仿真并各自嵌唯一 marker。IOC 扩充 discord CDN/telegram/rentry/gofile 等。
+- ✅ **"读凭据即 credential_access"**：`monitor` 记录读取到的敏感/诱饵路径 `credential_read_paths`，
+  `capabilities.observed_from_audit` 据此加 `credential_access`（敏感能力）→ 未声明即至少 review；正常技能不读，故 FPR 不受损。
+- ✅ **同 50/50 重跑（`runs/pilot50_v2.json`）= 与 v1 完全一致**（P=1.00/R=0.16/F1=0.28/FPR=0.00/蜜罐=0）。
+  诚实归因：50 恶意样本运行时 **0 个读到诱饵/命中蜜罐**——瓶颈是**执行触发**（恶意逻辑藏在未调用函数里，
+  顶层直跑触发不到），不是诱饵覆盖。机制本身已用合成样本验证正确（读 AWS 凭据→review、钱包外传→deny）。
+- ✅ 测试：新增诱饵覆盖/凭据读取映射单测；改动文件 ruff 干净，动态+一致性相关 41 passed。
+- ⏭️ 待确认的关键下一步：**受控入口触发**（Docker 隔离内自动调用 `main()`/定义的入口），预期显著提升执行到率与召回。
 
 ### 2026-07-18 — 方向 A：动态引擎依赖兜底 + allowed-tools 声明 + 真实样本小批实验（Devin）
 

@@ -88,6 +88,14 @@ class TestObserved:
             Capability.CREDENTIAL_ACCESS,
         }
 
+    def test_credential_read_maps_to_credential_access(self):
+        """仅读取敏感凭据/诱饵文件（未外传）也应映射为 credential_access 观测能力。"""
+        result = DynamicAuditResult(
+            executed=True,
+            credential_read_paths=["/work/.aws/credentials"],
+        )
+        assert Capability.CREDENTIAL_ACCESS in observed_from_audit(result)
+
     def test_from_audit_findings_behavior(self):
         result = DynamicAuditResult(
             executed=True,

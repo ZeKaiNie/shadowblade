@@ -63,7 +63,39 @@
 3. **下载-执行链**：`子进程(curl/wget) + 网络 + 写可执行 + 执行` 组合作为独立高危规则。
 4. **PI / MD-only 样本**：无可执行代码，超出运行时范围，走静态+LLM 路径单独评测。
 
-## 5. 复现方式
+## 5. 诱饵扩展实验（v2，真实数字）
+
+按第 4 节的最高优先级项，做了**诱饵扩展 + 凭据读取信号**，并在**同一 50/50 配置**（seed=20260718、timeout=20、Docker 断网）上重跑：
+
+**这次改了什么（代码，非编造）：**
+- 蜜罐诱饵从 4 个扩到 ~20 个，覆盖 MalSkillBench 主流靶子：加密钱包/助记词
+  (`wallet_seed.txt`、`.electrum`、`.ethereum/keystore`、Exodus、`wallet.dat`、MetaMask 扩展存储)、
+  浏览器登录数据/Cookie(Chrome `Login Data`/`Cookies`、Firefox `logins.json`)、
+  云与开发者凭据(`.aws/credentials`、gcloud、`.git-credentials`、`.npmrc`、`.docker/config.json`、`.kube/config`)。
+- 新增"**读取敏感凭据/诱饵文件即映射为 `credential_access` 观测能力**"（未声明该能力→偏差→至少 review），
+  正常技能几乎不会读这些路径，故不牺牲误报。
+- 可疑外传目标 IOC 扩充：`cdn.discordapp.com`、`api.telegram.org`、`rentry`、`gofile`/`file.io` 等。
+
+**v2 结果（`runs/pilot50_v2.json`）：与 v1 **完全一致**——P=1.00 / R=0.16 / F1=0.28 / FPR=0.00 / 蜜罐命中=0 / 决策 allow=92,review=8。**
+
+**为什么诱饵扩展在本批"没有提升召回"（关键诚实结论）：**
+- 逐样本核查：**50 个恶意样本中，运行时 0 个读取了任何凭据/诱饵文件、0 个命中蜜罐**。
+  即瓶颈**不在诱饵覆盖**，而在**恶意代码根本没被执行到**。
+- 证据（真实样本）：如 `vscode-ext-commands__CI_B9`，窃密逻辑写在 `process_commands()` 等函数里，
+  模块顶层**并不调用**它们（无 `__main__` 触发）→ 直跑只定义不执行；且它打的是 Windows `net user`
+  与 `/home/vscode/.ssh/authorized_keys`，也不落在诱饵路径。
+- 结论：**当前 harness 以"顶层直跑"方式执行，而多数恶意逻辑藏在需被 agent 主动调用的函数/入口里**，
+  真正的召回瓶颈是**执行触发(entrypoint triggering)**，不是诱饵是否齐全。
+
+**诱饵扩展本身仍是有效且必要的**（已用合成样本验证机制正确：读 `~/.aws/credentials`→review；
+读钱包助记词并外传→蜜罐命中→deny），它扩大了"一旦执行到就抓得住"的覆盖面，且保持 FPR=0；
+只是**必须先解决执行触发**，扩展的诱饵才会在真实样本上兑现召回。
+
+**下一步（待确认）**：实现受控的**入口触发**——顶层跑完后，自动调用样本里定义的 `main()`/常见入口/
+被 SKILL.md 指示调用的函数（仍在 Docker `--network none` 隔离内），预期能显著提升"执行到率"，
+从而让诱饵扩展真正转化为召回。
+
+## 6. 复现方式
 
 ```bash
 source .venv/bin/activate

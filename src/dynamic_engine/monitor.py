@@ -20,30 +20,62 @@ from src.dynamic_engine.models import (
     SandboxRunResult,
 )
 
-# 已知恶意/外传相关域名与 IP（ClawHavoc IOC + 常见匿名外传服务）
+# 已知恶意/外传相关域名与 IP（ClawHavoc IOC + 常见匿名外传/paste/CDN 服务）
 DEFAULT_SUSPICIOUS_TARGETS = [
     "91.92.242.30",
     "webhook.site",
     "glot.io",
     "pastebin.com",
+    "rentry.co",
+    "rentry.org",
     "transfer.sh",
     "requestbin",
     "ngrok.io",
     "ngrok-free.app",
     "discord.com/api/webhooks",
+    "discordapp.com/api/webhooks",
+    "cdn.discordapp.com",
+    "api.telegram.org",
     "0x0.st",
     "tmpfiles.org",
+    "gofile.io",
+    "file.io",
+    "anonfiles",
+    "termbin.com",
 ]
 
-# 敏感诱饵路径特征（读到这些 = 在翻凭据）
+# 敏感诱饵/凭据路径特征（读到这些 = 在翻凭据；与 honeypot.py 的诱饵路径对应）
+# 白话讲解：正常技能几乎不会去读这些路径，命中即映射为 credential_access 能力。
 SENSITIVE_PATH_HINTS = [
+    # SSH / 通用凭据
     ".ssh/id_rsa",
+    ".ssh/id_ed25519",
     ".env",
     "credentials.json",
     ".clawdbot",
     ".config/openclaw",
     "/etc/passwd",
     "/etc/shadow",
+    # 云 / 开发者凭据
+    ".aws/credentials",
+    "application_default_credentials.json",
+    ".git-credentials",
+    ".npmrc",
+    ".pypirc",
+    ".docker/config.json",
+    ".kube/config",
+    # 加密货币钱包 / 助记词
+    "wallet_seed",
+    "seed_phrase",
+    ".electrum",
+    ".ethereum/keystore",
+    "exodus.wallet",
+    "wallet.dat",
+    "nkbihfbeogaeaoehlefnkodbefgpgknn",  # MetaMask 扩展 ID
+    # 浏览器登录数据 / Cookie
+    "Login Data",
+    "Cookies",
+    "logins.json",
 ]
 
 # 远程脚本执行特征（子进程命令行里出现即高危）
@@ -117,14 +149,15 @@ def analyze(
             "high", "连接已知恶意域名/外传服务（C2 或数据外传）", BehaviorType.NETWORK
         ))
 
-    # 4) 读敏感诱饵文件
-    read_sensitive = False
+    # 4) 读敏感诱饵文件（记录命中的路径，供上层映射为 credential_access 能力）
+    credential_read_paths: list[str] = []
     for e in run_result.events:
         if e.behavior is BehaviorType.FILE_OPEN:
             joined = " ".join(e.args)
             if any(h in joined for h in SENSITIVE_PATH_HINTS):
-                read_sensitive = True
-                break
+                credential_read_paths.append(joined[:120])
+    read_sensitive = bool(credential_read_paths)
+    result.credential_read_paths = sorted(set(credential_read_paths))
 
     # 5) 子进程 / 远程脚本执行
     subprocess_calls: list[str] = []

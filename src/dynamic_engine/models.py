@@ -116,6 +116,8 @@ class DynamicAuditResult:
     network_targets: list[str] = field(default_factory=list)
     subprocess_calls: list[str] = field(default_factory=list)
     identity_files_written: list[str] = field(default_factory=list)
+    # 读取到的敏感凭据/蜜罐诱饵文件路径（读它们=在翻凭据，映射为 credential_access 能力）
+    credential_read_paths: list[str] = field(default_factory=list)
     timed_out: bool = False
     reason: str = ""
 
