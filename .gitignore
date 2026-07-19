@@ -50,3 +50,6 @@ data/hermes_output/
 .env
 *.key
 datasets_external/
+
+# 评测运行产物（逐样本结果，不入库）
+runs/

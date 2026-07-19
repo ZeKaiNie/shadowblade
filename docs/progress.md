@@ -1,6 +1,23 @@
 # 开发进度
 
-> 最后更新：2026-07-18（**Hermes 已完全弃用与清理**，焦点回归 M3 静态引擎与 M4 动态沙箱）
+> 最后更新：2026-07-18（方向 A 小批实验跑通：真实样本上得到高精度/零误报/低召回的第一手数据）
+
+### 2026-07-18 — 方向 A：动态引擎依赖兜底 + allowed-tools 声明 + 真实样本小批实验（Devin）
+
+- ✅ **依赖兜底 shim**（`src/dynamic_engine/sandbox_shims/`）：让缺第三方库(requests 等)的技能代码
+  也能在最小镜像里跑到暴露行为那一步。联网类库(requests/httpx/wget/urllib3)用真 urllib 实现，
+  联网/外传动作可被审计并命中蜜罐；其它缺失库用宽容占位(_autostub)顶上。
+- ✅ **harness 修复**：过滤解释器/库/shim 的 import 噪声与文件描述符伪写；修正 `_is_write_mode`
+  只看 mode/flags（此前路径含 'w' 会被误判为写）。
+- ✅ **allowed-tools 声明解析**（`conformance/capabilities.parse_allowed_tools`）：把 Agent Skills 的
+  `allowed-tools: Read, WebFetch, Bash(...)` 映射为声明能力，声明侧更贴近真实授权。
+- ✅ **小批实验脚本** `scripts/run_pilot_batch.py`：真实 MalSkillBench 50 恶意 + 50 良性(含脚本子集)，
+  隔离 Docker 执行 → 一致性核验 → 决策 → P/R/F1/FPR。
+- ✅ **第一手真实结果**：Precision=1.00, FPR=0.00, Recall=0.16, F1=0.28, 蜜罐命中=0；良性 0 误报。
+  详见 `docs/planning/小批实验结果_方向A.md`（含诚实归因与下一步：诱饵扩展/可疑目标信誉/下载-执行链）。
+- ✅ 测试：新增 shim/allowed-tools 单测；全套 126 passed + 10 skipped。
+
+> 最后更新（历史）：2026-07-18（**Hermes 已完全弃用与清理**，焦点回归 M3 静态引擎与 M4 动态沙箱）
 
 ## 当前状态：M2 → M3 过渡（静态全链路打通）+ M4 动态引擎最小闭环已落地
 

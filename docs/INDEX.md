@@ -58,6 +58,7 @@ config/settings.yaml   # 全局配置
 ```
 
 ### 最近变更
+- 07-18 **方向A 小批实验**：动态引擎加依赖兜底 shim + allowed-tools 声明解析，真实 MalSkillBench 50恶意/50良性跑通 → Precision=1.00/FPR=0.00/Recall=0.16（高精度零误报低召回），见 `docs/planning/小批实验结果_方向A.md`、`scripts/run_pilot_batch.py`、`src/dynamic_engine/sandbox_shims/`
 - 07-18 **P0 数据+评测**：MalSkillBench 数据加载器（3,944恶意+4,000良性）+ 评测框架（P/R/F1/FPR）+ baseline 复现表，见 `src/data_ingestion/malskillbench_loader.py`、`src/evaluation/`、`docs/planning/baseline复现结果_MalSkillBench.md`
 - 07-18 **方向决策**：全候选彻底对比后锁定 **A（保底）+ B 跨App上下文投毒（新颖）**，见 `docs/planning/方向决策_全候选彻底对比.md`、`docs/planning/新兴风口调研_下一代Agent安全方向.md`
 - 07-18 **联网竞品调研**：核实赛道已饱和（USENIX'26/MalSkillBench/BIV 等预印本），锁定方向 A（运行时接地能力一致性核验+蜜罐取证+阻断），拉取公开数据集，见 `docs/planning/2026现状调研与论文方向修正.md` + `docs/planning/方向A_运行时接地能力一致性核验_研究计划.md`

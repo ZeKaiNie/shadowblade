@@ -26,6 +26,7 @@ from src.dynamic_engine.honeypot import Honeypot, build_honeypot, deploy_files
 from src.dynamic_engine.models import BehaviorEvent, SandboxRunResult
 
 _HARNESS_SRC = Path(__file__).with_name("harness.py")
+_SHIMS_SRC = Path(__file__).with_name("sandbox_shims")
 DEFAULT_IMAGE = "python:3.11-slim"
 
 
@@ -75,6 +76,9 @@ def _prepare_workspace(code: str, honeypot: Honeypot) -> tuple[Path, Path]:
     workspace = Path(tempfile.mkdtemp(prefix="shadowblade_sbx_"))
     shutil.copy(_HARNESS_SRC, workspace / "harness.py")
     (workspace / "skill_payload.py").write_text(code, encoding="utf-8")
+    # 拷入依赖兜底 shim（requests 等），让缺库的技能代码也能跑到暴露行为那一步
+    if _SHIMS_SRC.is_dir():
+        shutil.copytree(_SHIMS_SRC, workspace / "_shims")
     deploy_files(honeypot, workspace)
 
     config = {

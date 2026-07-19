@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from src.conformance.conformance import ConformanceResult, verify_conformance
+from src.conformance.capabilities import declared_from_skill_md
+from src.conformance.conformance import ConformanceResult, verify_conformance_caps
 from src.dynamic_engine.honeypot import Honeypot
 from src.dynamic_engine.pipeline import audit_dynamic
 from src.static_engine.skill_parser import extract_capabilities
@@ -53,7 +54,9 @@ def verify_skill_from_code(
 
     白话讲解：声明侧只看文本、不执行；观测侧进沙箱真跑；最后合流做核验。
     """
-    declared = extract_capabilities(skill_md_text)
+    declared_strings = extract_capabilities(skill_md_text)
+    # 声明能力 = allowed-tools 授权 ∪ 正文/front matter 关键词
+    declared_caps = declared_from_skill_md(skill_md_text, declared_strings)
 
     dynamic_result = audit_dynamic(
         code_blocks=code_blocks,
@@ -65,10 +68,10 @@ def verify_skill_from_code(
         allow_unsafe_subprocess=allow_unsafe_subprocess,
     )
 
-    conformance = verify_conformance(declared, dynamic_result)
+    conformance = verify_conformance_caps(declared_caps, dynamic_result)
 
     return SkillConformanceReport(
-        declared_capabilities=declared,
+        declared_capabilities=declared_strings,
         executed=dynamic_result.executed,
         backend=dynamic_result.backend,
         dynamic_risk=dynamic_result.risk_score,

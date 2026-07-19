@@ -58,11 +58,37 @@ def _stringify(value, limit: int = 300) -> str:
     return s[:limit]
 
 
+# Python 解释器 / 标准库 / 第三方包的安装位置前缀（import 机制读这些文件属框架噪声）
+_FRAMEWORK_PATH_PARTS = (
+    "/usr/lib/python",
+    "/usr/local/lib/python",
+    "site-packages",
+    "dist-packages",
+    "lib-dynload",
+    "/_shims/",
+    "<frozen",
+)
+
+
+def _is_framework_path(path: str) -> bool:
+    """判断一个文件路径是否属于解释器/库/shim（import 机制读写它们是必要噪声）。"""
+    return any(part in path for part in _FRAMEWORK_PATH_PARTS)
+
+
 def _is_write_mode(args) -> bool:
-    """判断一次 open 是否是写入模式（mode 含 w/a/x/+）"""
-    for a in args:
-        if isinstance(a, str) and any(c in a for c in ("w", "a", "x", "+")):
-            return True
+    """
+    判断一次 open 是否是写入模式。
+
+    白话讲解：open 审计事件的参数是 (path, mode, flags)。
+    只能看 mode 字符串（第 2 个参数）或 flags 位标志，**绝不能扫 path** ——
+    否则像 /work/、download 这种路径里带 'w'/'a'/'x' 会被误判成写入。
+    """
+    # 优先看 mode 字符串（如 'r' / 'w' / 'a+' / 'rb'）
+    if len(args) >= 2 and isinstance(args[1], str):
+        return any(c in args[1] for c in ("w", "a", "x", "+"))
+    # 退化：看 os.open 的整数 flags 位
+    if len(args) >= 3 and isinstance(args[2], int):
+        return bool(args[2] & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_APPEND))
     return False
 
 
@@ -88,10 +114,15 @@ def main() -> int:
             return
 
         arg_list = list(args)
-        # 过滤探针自身脚手架文件的读写（框架噪声）
+        # 过滤框架/依赖导入产生的文件读写噪声：
+        # 1) 探针自身脚手架文件；2) Python 解释器/标准库/site-packages；3) shim 兜底目录。
+        # 这些都是"跑起来"的必要机制，不是技能自身的行为。
         if behavior in ("file_open", "file_write") and arg_list:
-            base = os.path.basename(_stringify(arg_list[0]))
-            if base in _OWN_FILES:
+            path = _stringify(arg_list[0])
+            base = os.path.basename(path)
+            # 跳过：探针脚手架文件 / 解释器库文件 / 文件描述符(整数)——
+            # 文件描述符(如 open(3, 'wb')) 是解释器内部 I/O，不是技能的文件行为。
+            if base in _OWN_FILES or _is_framework_path(path) or path.strip().isdigit():
                 return
 
         str_args = [_stringify(a) for a in arg_list]
@@ -119,6 +150,18 @@ def main() -> int:
 
     # 防止技能里的网络调用长时间阻塞沙箱
     socket.setdefaulttimeout(3)
+
+    # 挂载依赖兜底 shim：把 _shims 目录追加到 sys.path 末尾（不遮蔽真库/标准库），
+    # 并安装"缺失依赖自动占位"finder。这样缺 requests 等库的技能也能跑到暴露行为那步。
+    shims_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_shims")
+    if os.path.isdir(shims_dir):
+        sys.path.append(shims_dir)
+        try:
+            import _autostub
+
+            _autostub.install()
+        except Exception:
+            sys.stderr.write("[harness] autostub 安装失败（忽略）\n")
 
     sys.addaudithook(_audit_hook)
 

@@ -3,9 +3,11 @@
 """
 from src.conformance import (
     Capability,
+    declared_from_skill_md,
     normalize_declared,
     observed_from_audit,
     observed_from_events,
+    parse_allowed_tools,
     verify_conformance,
 )
 from src.dynamic_engine.models import (
@@ -34,6 +36,32 @@ class TestNormalizeDeclared:
 
     def test_unmatched_string_ignored(self):
         assert normalize_declared(["just prints hello"]) == set()
+
+
+class TestAllowedTools:
+    def test_parse_allowed_tools(self):
+        md = (
+            "---\n"
+            "name: x\n"
+            "allowed-tools: Read, WebFetch, WebSearch, Grep, Bash(diff:*), Bash(grep:*)\n"
+            "---\n# x\n"
+        )
+        caps = parse_allowed_tools(md)
+        assert Capability.NETWORK in caps       # WebFetch/WebSearch
+        assert Capability.SUBPROCESS in caps    # Bash(...)
+        assert Capability.FILE_READ in caps     # Read/Grep
+
+    def test_no_allowed_tools(self):
+        assert parse_allowed_tools("# just a title\n") == set()
+
+    def test_declared_from_skill_md_union(self):
+        md = (
+            "---\nname: x\nallowed-tools: Bash(ls:*)\n---\n"
+            "# x\nThis skill requires network access.\n"
+        )
+        caps = declared_from_skill_md(md, ["network access"])
+        assert Capability.SUBPROCESS in caps    # 来自 allowed-tools
+        assert Capability.NETWORK in caps       # 来自正文关键词
 
 
 class TestObserved:

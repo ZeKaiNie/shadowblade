@@ -7,21 +7,27 @@
 from src.conformance.capabilities import (
     SENSITIVE_CAPABILITIES,
     Capability,
+    declared_from_skill_md,
     normalize_declared,
     observed_from_audit,
     observed_from_events,
+    parse_allowed_tools,
 )
 from src.conformance.conformance import (
     ConformanceResult,
     verify_conformance,
+    verify_conformance_caps,
 )
 
 __all__ = [
     "Capability",
     "SENSITIVE_CAPABILITIES",
+    "declared_from_skill_md",
     "normalize_declared",
     "observed_from_audit",
     "observed_from_events",
+    "parse_allowed_tools",
     "ConformanceResult",
     "verify_conformance",
+    "verify_conformance_caps",
 ]
