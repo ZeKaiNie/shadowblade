@@ -29,7 +29,10 @@
 - ✅ **分层评测函数**（`cascade.evaluate.cascade_metrics`）：同时出 Stage-1-only / Stage-2-only / Cascade 三套 P/R/F1/FPR + 按 CI/PI/MIXED/wild 分层计数(confirmed/refuted/abstained/skipped) + 良性 FP 减少量/率 + 召回从 Stage-1 到 Cascade 的变化（诚实呈现，含召回损失）。
 - ✅ 批处理脚本 `scripts/run_cascade_batch.py`（同 seed=20260718/n=50 采样，输出 `runs/cascade50.json`；数据集缺失时直接报错、不伪造）。
 - ✅ 测试：`tests/test_cascade.py` 6 passed（合成样本+依赖注入验证三态逻辑与分层计数，无 Docker/数据集可跑）；相关现有单测 47 passed/5 skipped；改动文件 ruff 干净。
-- ⚠️ **真实 50/50 分层数字尚未跑**：本 VM 缺 MalSkillBench 数据集（`datasets_external/` 不存在，红线 gitignore 不入库）。**机制仅经单测验证，未在真实样本上出数——不得据此宣称任何召回/降误报数字**。待数据集就位后跑 `run_cascade_batch.py` 补真实分层结果（即 arXiv v1 核心结果）。
+- ✅ **真实 50/50 已跑**（官方 MalSkillBench，seed=20260718，Docker，timeout=20，S1阈值0.2）：Stage-1-only P/R/F1/FPR=0.54/0.54/0.54/**0.46**（吵）；Stage-2-only=**1.00/0.30/0.46/0.00**；Cascade=**1.00/0.18/0.31/0.00**。详见 `docs/planning/级联小批实验结果_2026-07.md`。
+- ✅ **正向**：零误报运行时层把 Stage-1 的 23 个良性误报**100% 证伪剪枝**，FPR 0.46→0.00。
+- ⚠️ **负向（如实保留）**：**门控式级联反而不如 Stage-2-only**（召回 0.30→0.18，FPR 都=0）——静态门丢弃 7 个 Stage-2 本可确认的恶意（不可恢复），另 18 个恶意在沙箱干净执行无可观测偏差。结论：**静态阶段不能当召回门**（只降召回不增收益），正当作用是算力分诊（本批 Stage-2 只跑 50 而非 100）。
+- ⏭️ 下一步：Stage-1 阈值扫描 / 改非门控级联（Stage-2 跑全部、静态只分诊）把召回拉回 0.30 且守 FPR=0；扩样本 + CI/PI/MIXED/控制面分层把"适用边界"测扎实。
 
 ### 2026-07-21 — 竞品对比 + 投稿定位调研（Devin）
 

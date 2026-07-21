@@ -92,7 +92,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="混合级联检测器 MalSkillBench 小批评测")
     parser.add_argument("--n", type=int, default=50, help="每类样本数（恶意/良性各 n）")
     parser.add_argument("--seed", type=int, default=20260718, help="随机种子")
-    parser.add_argument("--timeout", type=int, default=30, help="单样本沙箱超时(秒)")
+    parser.add_argument("--timeout", type=int, default=20, help="单样本沙箱超时(秒)")
     parser.add_argument("--pool", type=int, default=400, help="候选池上限")
     parser.add_argument("--stage1-threshold", type=float, default=0.2, help="Stage-1 候选阈值")
     parser.add_argument("--out", type=str, default="runs/cascade50.json", help="结果输出路径")
