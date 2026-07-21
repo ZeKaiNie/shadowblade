@@ -24,7 +24,9 @@ class CascadeResult(BaseModel):
     honeypot_triggered: bool = Field(description="蜜罐是否命中")
     final_decision: str = Field(description="最终决策：allow/review/deny")
     final_flag: bool = Field(description="最终是否标记为可疑")
-    stage2_outcome: str = Field(description="skipped/confirmed/refuted/abstained")
+    stage2_outcome: str = Field(
+        description="skipped/confirmed/refuted/abstained/always_run"
+    )
     reasons: list[str] = Field(default_factory=list, description="中文可解释理由")
 
 
@@ -85,13 +87,16 @@ def run_cascade(
     backend: str = "docker",
     timeout: int = 20,
     honeypot: Honeypot | None = None,
+    gate: bool = True,
     stage1_fn: Callable[[str], Any] | None = None,
     stage2_fn: Callable[..., Any] | None = None,
 ) -> CascadeResult:
     """
     运行两级级联，并严格区分 confirmed/refuted/abstained 三种结果。
 
-    ``stage1_fn`` 和 ``stage2_fn`` 是测试注入点；不传时使用项目已有管线。
+    ``gate=True`` 保持原来的静态门控行为；``gate=False`` 时所有样本都执行
+    Stage-2，最终决策直接采用运行时结论。``stage1_fn`` 和 ``stage2_fn``
+    是测试注入点；不传时使用项目已有管线。
     """
 
     if not 0.0 <= stage1_threshold <= 1.0:
@@ -105,7 +110,7 @@ def run_cascade(
         f"Stage-1 静态风险分为 {stage1_risk:.3f}，阈值为 {stage1_threshold:.3f}。"
     ]
 
-    if not stage1_flag:
+    if gate and not stage1_flag:
         reasons.append("风险分低于候选阈值，跳过 Stage-2 以节省沙箱算力，最终放行。")
         return CascadeResult(
             stage1_risk=stage1_risk,
@@ -119,7 +124,12 @@ def run_cascade(
             reasons=reasons,
         )
 
-    reasons.append("风险分达到低门槛候选阈值，触发 Stage-2 运行时确认。")
+    if gate:
+        reasons.append("风险分达到低门槛候选阈值，触发 Stage-2 运行时确认。")
+    else:
+        reasons.append(
+            "当前为非门控模式：所有样本都执行 Stage-2，最终决策直接采用运行时确认结论。"
+        )
     report = (
         stage2_fn or _default_stage2
     )(
@@ -135,6 +145,25 @@ def run_cascade(
     conformance = report.conformance
     stage2_deviation = float(conformance.deviation_score)
     honeypot_triggered = bool(conformance.honeypot_triggered)
+
+    if not gate:
+        reasons.append(
+            f"非门控模式采用 Stage-2 结论={stage2_decision}，执行={stage2_executed}，"
+            f"偏差分={stage2_deviation:.3f}，蜜罐命中={honeypot_triggered}。"
+        )
+        return CascadeResult(
+            stage1_risk=stage1_risk,
+            stage1_flag=stage1_flag,
+            stage2_ran=True,
+            stage2_executed=stage2_executed,
+            stage2_decision=stage2_decision,
+            stage2_deviation=stage2_deviation,
+            honeypot_triggered=honeypot_triggered,
+            final_decision=stage2_decision,
+            final_flag=stage2_decision != "allow",
+            stage2_outcome="always_run",
+            reasons=reasons,
+        )
 
     if stage2_decision != "allow":
         outcome = "confirmed"
