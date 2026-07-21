@@ -22,6 +22,25 @@
 
 ---
 
+### 2026-07-21 — 方向 A：混合级联骨架 v1（代码+单测，Devin）
+
+- ✅ **级联骨架落地**（`src/cascade/`）：Stage-1 用现有静态扫描器(`static_engine.audit_skill`, 低阈值 0.2 高召回/吵)出候选 → Stage-2 用我们零误报运行时+蜜罐一致性(`conformance.pipeline.verify_skill_from_code`)做确认/剪枝。
+- ✅ **三态确认逻辑**（论文卖点，`cascade.run_cascade`）：Stage-1 不报→跳过 Stage-2 直接 allow；Stage-1 报后——**confirmed**(Stage-2 非 allow→保留 review/deny)、**refuted**(Stage-2 真跑起来且 allow→剪枝为 allow，这是降误报关键)、**abstained**(Stage-2 没跑起来/无信号→不敢剪枝，保留为 review)。
+- ✅ **分层评测函数**（`cascade.evaluate.cascade_metrics`）：同时出 Stage-1-only / Stage-2-only / Cascade 三套 P/R/F1/FPR + 按 CI/PI/MIXED/wild 分层计数(confirmed/refuted/abstained/skipped) + 良性 FP 减少量/率 + 召回从 Stage-1 到 Cascade 的变化（诚实呈现，含召回损失）。
+- ✅ 批处理脚本 `scripts/run_cascade_batch.py`（同 seed=20260718/n=50 采样，输出 `runs/cascade50.json`；数据集缺失时直接报错、不伪造）。
+- ✅ 测试：`tests/test_cascade.py` 6 passed（合成样本+依赖注入验证三态逻辑与分层计数，无 Docker/数据集可跑）；相关现有单测 47 passed/5 skipped；改动文件 ruff 干净。
+- ✅ **真实 50/50 已跑**（官方 MalSkillBench，seed=20260718，Docker，timeout=20，S1阈值0.2）：Stage-1-only P/R/F1/FPR=0.54/0.54/0.54/**0.46**（吵）；Stage-2-only=**1.00/0.30/0.46/0.00**；Cascade=**1.00/0.18/0.31/0.00**。详见 `docs/planning/级联小批实验结果_2026-07.md`。
+- ✅ **正向**：零误报运行时层把 Stage-1 的 23 个良性误报**100% 证伪剪枝**，FPR 0.46→0.00。
+- ⚠️ **负向（如实保留）**：**门控式级联反而不如 Stage-2-only**（召回 0.30→0.18，FPR 都=0）——静态门丢弃 7 个 Stage-2 本可确认的恶意（不可恢复），另 18 个恶意在沙箱干净执行无可观测偏差。结论：**静态阶段不能当召回门**（只降召回不增收益），正当作用是算力分诊（本批 Stage-2 只跑 50 而非 100）。
+- ⏭️ 下一步：Stage-1 阈值扫描 / 改非门控级联（Stage-2 跑全部、静态只分诊）把召回拉回 0.30 且守 FPR=0；扩样本 + CI/PI/MIXED/控制面分层把"适用边界"测扎实。
+
+### 2026-07-21 — 竞品对比 + 投稿定位调研（Devin）
+
+- ✅ 联网核实赛道拥挤度：2026-06/07 arXiv 上 agent skill 安全已成**红海**（15+ 篇，Yang Liu/Guo Wenbo/Fang Yong/Neil Gong 等顶级组领跑）。
+- ⚠️ **我们"运行时观测/控制面"的单点新意已被占**：RSA(2606.11671) 做定向运行时探测+trace 打标、Cloak&Detonate(2607.02357) 做动态检测+对抗规避、Dynamic Malicious Skills(2606.16287) 做 SKILL.md 控制面动态注入攻击+内核只读挂载防御；PrivacyPeek(2606.00152) 近邻"声明 vs 实际获取"。
+- ✅ 结论：**不能当"新检测器"卖**；按交接书 §4"低误报确认层 + 级联剪枝 + 分层诚实测量"重定位仍可冲 **CCF-C/中文核心/SCI Q3**（CCF-A/B、Q1 短期不现实）。竞品逐条对比、三大最像论文深剖、我们能立住的差异点、必引清单、arXiv preprint 时间线 → `docs/planning/竞品对比与投稿定位_2026-07.md`。
+- ⏭️ 下一步（A→B 的 B）：落地 Stage-1→Stage-2 级联骨架，同 50/50 出**分层真实数字**（量化级联把误报压了多少、召回是否守住），作为 arXiv v1 核心结果。
+
 ### 2026-07-18 — 方向 A：入口触发 v3（Devin）
 
 - ✅ **入口触发**（`dynamic_engine/harness.py`）：`runpy` 跑完模块顶层后，主动调用样本**自己定义、

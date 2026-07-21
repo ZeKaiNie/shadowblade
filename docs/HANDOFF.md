@@ -17,7 +17,8 @@
 2) docs/HANDOFF.md（本交接书：现状/路线/下一步/红线）
 3) docs/INDEX.md（知识库索引 + 快速上下文）
 4) docs/progress.md 顶部「⭐当前主线」
-5) docs/planning/小批实验结果_方向A.md（真实实验数字与诚实归因）
+5) docs/planning/级联小批实验结果_2026-07.md（最新真实实验数字与诚实归因）
+6) docs/planning/竞品对比与投稿定位_2026-07.md（赛道拥挤度与投稿定位）
 
 读完后用 3~5 句话向我复述：研究主线是什么、当前真实指标是多少、下一步该做什么、有哪些红线。
 复述正确我们再继续。不要相信任何"高召回/100%检出"之类的漂亮数字，一切以仓库 committed 文档为准。
@@ -62,6 +63,10 @@
   FPR 仍 0.00**，唯一变化是 2 个原 review 样本（Bankr / OSINT，外联已知外传目标）**被正确升为 deny**
   （allow=92/review=6/deny=2）。**未提升召回**。详见第 5c 节。
 
+- ✅ **混合级联骨架 + 真实 50/50 已跑（2026-07）**：Stage-1 用纯静态扫描器(`static_engine.audit_skill`, 阈值0.2)出候选 → Stage-2 用零误报运行时+蜜罐一致性做**三态**确认(confirmed/refuted/abstained)。真实结果（官方 MalSkillBench，seed=20260718，Docker，timeout=20）：Stage-1-only P/R/F1/FPR=0.54/0.54/0.54/**0.46**(吵)；Stage-2-only=1.00/0.30/0.46/0.00；**Cascade(门控式)=1.00/0.18/0.31/0.00**。
+  - **正向真贡献**：零误报运行时层把 Stage-1 的 23 个良性误报**100% 证伪剪枝**（FPR 0.46→0.00）。
+  - **负向（如实，勿包装）**：**门控式级联反不如 Stage-2-only**（召回 0.30→0.18）——静态门丢弃 7 个 Stage-2 本可确认的恶意（不可恢复），另 18 个恶意在沙箱干净执行无可观测偏差。**结论：静态阶段不能当"召回门"，只作算力分诊。** 详见 `docs/planning/级联小批实验结果_2026-07.md`。
+
 ## 4. 下一步（⭐ 已拍板：先做"混合级联"）
 
 > **重要背景结论（基于 MalSkillBench 论文 arXiv 2606.07131 + 我们自己复现的 20+ baseline）**：
@@ -75,9 +80,10 @@
 
 1. **（第一步，立即做）样本可执行性分层**：把样本标注为"可执行 CI" vs "PI/静态只能静态/LLM"，
    按层（CI / PI / MIXED / 控制面 B10–B15）如实汇报，把"召回低"这个弱点转成"运行时确认层适用边界"的干净结论。
-2. **（第二步）Stage-1 → Stage-2 级联骨架**：**Stage-1** 用高召回但吵的 LLM 技能扫描器出候选 →
-   **Stage-2** 用我们零误报的运行时+蜜罐"意图(SKILL.md 声明能力)↔运行时行为"一致性做**确认/剪枝**
-   （降低那 15%–37% 误报）。先小批跑通验证混合管线、分层出真实数字。
+2. ✅ **（已完成）Stage-1 → Stage-2 级联骨架**：Stage-1 起步用**纯静态扫描器**（非 LLM，零成本零上传）出候选 →
+   Stage-2 用零误报运行时+蜜罐一致性做确认/剪枝。已在真实 50/50 跑出分层数字（见 §3 末条）。
+   **⭐ 当前主线下一步（已推荐）：改"非门控级联"**——Stage-2 对全部样本都跑、Stage-1 只做分诊/排序，
+   把召回从 0.18 拉回 0.30 且仍 FPR=0；再做 Stage-1 阈值扫描当权衡曲线消融。**静态只是廉价初筛，运行时确认层才是主角。**
 3. **（第三步）更大批 + 消融**：量化诱饵/入口触发/目标信誉各自边际贡献 + MaliciousAgentSkillsBench 跨数据集泛化。
    大批/花钱（云 LLM API）的实验**跑前先问用户**。
 4. **（拉上限的第二阶段，非当下）控制面 B10–B15**：多数检测器在此掉点（我们蜜罐已监控 SOUL.md/MEMORY.md/AGENTS.md
@@ -123,7 +129,8 @@
 - 已知环境问题：`tests/test_rag_knowledge.py` 依赖可选包 `chromadb`，未装时全量 `pytest` 收集会报错——
   与主线改动无关，跑测试时可 `--ignore=tests/test_rag_knowledge.py`；Docker 集成测试无 Docker 会自动 skip。
 - 真实小批复现：`PYTHONPATH=. python scripts/run_pilot_batch.py --n 50 --seed 20260718 --timeout 20 --out runs/pilotXX.json`
-  （会在 Docker 隔离内执行真实恶意代码，确保 Docker 可用）。
+  （会在 Docker 隔离内执行真实恶意代码，确保 Docker 可用）。级联批：`PYTHONPATH=. python scripts/run_cascade_batch.py`（默认同 seed/n=50/timeout=20，输出 `runs/cascade50.json`）。
+- ⭐ **数据集获取（新账号/新环境必看，否则跑不了实验）**：MalSkillBench **不入库**（gitignore），clone 本仓库不带。官方来源 = **`github.com/lxyeternal/MalSkillBench`**（即 arXiv:2606.07131 论文仓库，3945 恶意 + 4000 良性，含 `Dataset/Skills/{malware,benign}` + `Experiment/` baseline 脚本，约 3.9G）。放到 `datasets_external/MalSkillBench/`（loader 默认路径，找 `<root>/Dataset/Skills`）或设 `MALSKILLBENCH_ROOT` 指向其根目录即可。clone 用 `GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1`（个别 `Utils/*.py` 可能 checkout 失败，与数据集无关，可忽略）。
 
 ## 8. PR 历史速查
 
