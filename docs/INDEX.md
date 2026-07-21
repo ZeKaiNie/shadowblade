@@ -75,6 +75,7 @@ config/settings.yaml   # 全局配置
 ```
 
 ### 最近变更
+- 07-21 **方向丙防御层与 mock 评测**：新增四种共享上下文防御（NoDefense、AmplificationRemoval、Spotlighting、ProvenanceScopedAuthorization），用明确标注的合成恶意/良性跨 App 场景计算 ASR、过阻断率和良性可用性。真实 mock 结果：ASR 分别为 1.000/0.250/1.000/0.000；严格来源授权过阻断率为 0.500，体现安全-可用性权衡。详见 `src/crossapp/defense.py`、`src/crossapp/evaluate.py`、`scripts/run_crossapp_defense.py` 和设计文档 §6。
 - 07-21 **方向丙 cross-app 投毒复现 harness v1**：新增 `src/crossapp/` 与 `scripts/run_crossapp_demo.py`、`tests/test_crossapp.py`，用无隔离 SharedContext、一等公民写入 API 和透明 deterministic mock LLM 复现“恶意 App 投毒→良性 App 被 confused deputy 操纵”；有毒/无毒对照可离线运行。设计说明见 `docs/planning/方向丙_crossapp防御_设计_2026-07.md`。v1 只做攻击复现，下一轮再加 provenance/来源隔离/授权对齐防御。
 - 07-21 **方向决策与竞品复盘（重要）**：新增 `docs/planning/方向决策与竞品复盘_2026-07.md`。结论：方向 A（skill 运行时确认）与方向 B（跨 App 上下文投毒的"攻击发现"）两条头牌均已被 2026 已发表+开源产物的论文占据（2602.06547/SkillScan、Cloak&Detonate 2607.02357、RSA 2606.11671、MalSkillBench、SCR-Bench 等；B 见 Confused ChatGPT 2606.00485）。可发路径=有清晰 delta 的诚实增量，目标 CCF-C/SCI 中低区。**当前推荐主攻"丙"：给 cross-app 上下文投毒做可复现防御（2606.00485 只留了临时启发式）**，甲(独立复现+边界测量)兜底。用户资源已更新：1 人+AI+8GB 4060+云 LLM API(DeepSeek/Kimi/Claude/Gemini)。待用户拍板红线(恶意/攻击文本能否发云模型)与主攻路线。
 - 07-21 **论文骨架重定位（方向 A）**：新增 `docs/planning/论文骨架_方向A_2026-07.md`。按用户"选 B"把系统从"级联/新检测器"重定位为**"零误报、确定性、可解释的运行时确认层 + 适用边界诚实测量"**；主贡献 C1–C4（含两个负向结论作诚实贡献：门控降召回、静态分诊不省算力）；含标题候选/Abstract/威胁模型/方法/真实 Results 占位/Limitations/必引区分/距 v1 缺口。已同步在竞品定位备忘录 §5 标注"级联剪枝叙事被真实数据证伪"。

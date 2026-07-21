@@ -27,7 +27,7 @@ class MockInstructionFollowingLLM:
     """
 
     _COMMAND_RE = re.compile(
-        r"\b(?P<verb>send|upload|exfiltrate|call|invoke)\b"
+        r"\b(?P<verb>send|upload|exfiltrate|call|invoke|sync)\b"
         r".*?\b(?:to|target|using)\s+"
         r"(?P<target>[a-zA-Z0-9][a-zA-Z0-9._:/-]*)",
         re.IGNORECASE,
@@ -48,6 +48,8 @@ class MockInstructionFollowingLLM:
 
         lines = context_text.splitlines()
         for line in reversed(lines):
+            if "[DATA_ONLY]" in line:
+                continue
             content = line.split("] ", 1)[-1]
             conditional = self._CONDITIONAL_RE.search(content)
             condition = conditional.group("condition").strip().lower() if conditional else None

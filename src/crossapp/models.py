@@ -69,6 +69,16 @@ class AttackEvidence(BaseModel):
     explanation: str
 
 
+class DefenseEntryDecision(BaseModel):
+    """防御对单条上下文记录的确定性裁决。"""
+
+    source_app_id: str
+    turn: int
+    action: Literal["pass", "isolate", "spotlight", "data_only"]
+    capability: Capability | None = None
+    reason: str
+
+
 class CrossAppSessionResult(BaseModel):
     """一次恶意 App→良性 App 会话的结构化复现结果。"""
 

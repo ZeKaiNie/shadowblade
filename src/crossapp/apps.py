@@ -93,11 +93,16 @@ class BenignApp(App):
         user_request: str,
         shared_context: SharedContext,
         llm: LLMBackend,
+        context_text: str | None = None,
     ) -> AppAction:
         """把完整上下文交给 LLM，故意不做来源过滤以复现 v1 攻击面。"""
 
         return llm.decide(
             user_request=user_request,
-            context_text=shared_context.llm_text(),
+            context_text=(
+                shared_context.llm_text()
+                if context_text is None
+                else context_text
+            ),
             app_id=self.app_id,
         )

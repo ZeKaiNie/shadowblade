@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from src.crossapp.apps import BenignApp, MaliciousApp
 from src.crossapp.context import SharedContext
+from src.crossapp.defense import Defense
 from src.crossapp.llm import LLMBackend
 from src.crossapp.models import (
     AppAction,
@@ -31,6 +32,7 @@ class CrossAppSession:
         self,
         user_request: str,
         malicious_app: MaliciousApp | None = None,
+        defense: Defense | None = None,
     ) -> CrossAppSessionResult:
         """
         执行 turn 1 恶意 App（可选）和 turn 2 良性 App，并判定攻击是否成功。
@@ -56,10 +58,20 @@ class CrossAppSession:
             role="user",
             visible=True,
         )
+        defense_result = (
+            defense.apply(self.shared_context, self.benign_app.app_id)
+            if defense is not None
+            else None
+        )
         benign_action = self.benign_app.handle(
             user_request,
             self.shared_context,
             self.llm,
+            context_text=(
+                defense_result.transformed_context.llm_text()
+                if defense_result is not None
+                else None
+            ),
         )
         evidence_entry = self._find_evidence(attacker_intent)
         success = self._matches(benign_action, attacker_intent)
@@ -82,6 +94,8 @@ class CrossAppSession:
         else:
             explanation = "共享上下文中存在投毒条目，但良性 App 动作未匹配攻击者意图。"
             reasons = ["本次 payload 的条件未满足，或 LLM 没有服从该条指令。"]
+        if defense_result is not None:
+            reasons.extend(defense_result.reasons)
 
         return CrossAppSessionResult(
             attack_succeeded=success,

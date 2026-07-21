@@ -20,6 +20,13 @@
 
 > ⚠️ 本文件下方「M2/M3、Hermes、MiMo key、M4-M8 里程碑、检出率 100%(10/10)」等属**历史存档，已不代表当前路线**，仅留作记录，勿作为接续指引。当前主线以本节 + `docs/planning/` 为准。
 
+### 2026-07-21 — 方向丙：来源授权防御层与 mock 评测（Devin）
+
+- ✅ 新增 `src/crossapp/defense.py`：实现 `NoDefense`、`AmplificationRemoval`、`Spotlighting` 和主张的 `ProvenanceScopedAuthorization`，均返回确定性、逐条可解释的上下文裁决。
+- ✅ 新增 `src/crossapp/evaluate.py` 与 `scripts/run_crossapp_defense.py`：使用 8 个恶意组合和 2 个良性跨 App 协作合成场景，计算 ASR、过阻断率和良性可用性。
+- 📊 本轮 mock 真实结果：ASR=1.000/0.250/1.000/0.000；严格来源授权过阻断率=0.500、良性可用性=0.500，显示安全-可用性权衡，不伪造“零代价”结论。
+- 🔍 `AmplificationRemoval` 只挡 system/hidden 放大位，`Spotlighting` 在服从型 mock 下基本不挡；来源授权切断恶意跨 App 指令，但会误伤一个直接跨 App follow-up。详见 `docs/planning/方向丙_crossapp防御_设计_2026-07.md` §6。
+
 ---
 
 ### 2026-07-21 — 方向丙：cross-app 上下文投毒复现 harness v1（Devin）
