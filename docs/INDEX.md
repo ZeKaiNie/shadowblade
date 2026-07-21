@@ -75,6 +75,7 @@ config/settings.yaml   # 全局配置
 ```
 
 ### 最近变更
+- 07-21 **混合级联骨架 v1（代码+单测）**：新增 `src/cascade/`（Stage-1 静态扫描器出候选→Stage-2 零误报运行时+蜜罐确认/剪枝，**三态 confirmed/refuted/abstained** 逻辑）+ 分层评测函数（三套指标+CI/PI/MIXED/wild 分层+降误报量化+召回变化）+ `scripts/run_cascade_batch.py`。`tests/test_cascade.py` 6 passed、相关单测 47 passed、ruff 干净。⚠️ **真实 50/50 分层数字未跑**（本 VM 缺 MalSkillBench 数据集），机制仅经单测验证，勿宣称任何召回/降误报数字。
 - 07-21 **竞品对比 + 投稿定位调研**：联网核实 2026-06/07 arXiv 上 agent skill 安全已成红海（15+ 篇，顶级组领跑）；**运行时/动态检测卖点已被 RSA(2606.11671)/Cloak&Detonate(2607.02357)/Dynamic Malicious Skills(2606.16287) 占据**，控制面攻击+防御亦被做掉。结论：不能当"新检测器"卖，但按"低误报确认层+级联+分层诚实测量"重定位仍可冲 CCF-C/SCI Q3。竞品逐条对比、差异点、必引清单、arXiv 时间线见 `docs/planning/竞品对比与投稿定位_2026-07.md`。
 - 07-18 **拍板混合级联路线**：把 A 从"比召回"重叙事成"混合/级联检测器"（LLM 扫描器出候选 + 我们零误报运行时确认/剪枝 + 分层诚实汇报），依据 MalSkillBench 论文缺口 + 复现 baseline；完整决策写入 `docs/HANDOFF.md` §4（含"为何不直接冲控制面"）。
 - 07-18 **可疑目标信誉(v4)**：`monitor` 产出 `suspicious_network_targets`、`conformance` 独立于声明加权(0.45)；同 50/50 召回未变(R=0.16/FPR=0)、仅 2 样本 review→deny，已如实记录于 `docs/planning/小批实验结果_方向A.md` 第 5c 节。

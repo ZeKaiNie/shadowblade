@@ -22,6 +22,15 @@
 
 ---
 
+### 2026-07-21 — 方向 A：混合级联骨架 v1（代码+单测，Devin）
+
+- ✅ **级联骨架落地**（`src/cascade/`）：Stage-1 用现有静态扫描器(`static_engine.audit_skill`, 低阈值 0.2 高召回/吵)出候选 → Stage-2 用我们零误报运行时+蜜罐一致性(`conformance.pipeline.verify_skill_from_code`)做确认/剪枝。
+- ✅ **三态确认逻辑**（论文卖点，`cascade.run_cascade`）：Stage-1 不报→跳过 Stage-2 直接 allow；Stage-1 报后——**confirmed**(Stage-2 非 allow→保留 review/deny)、**refuted**(Stage-2 真跑起来且 allow→剪枝为 allow，这是降误报关键)、**abstained**(Stage-2 没跑起来/无信号→不敢剪枝，保留为 review)。
+- ✅ **分层评测函数**（`cascade.evaluate.cascade_metrics`）：同时出 Stage-1-only / Stage-2-only / Cascade 三套 P/R/F1/FPR + 按 CI/PI/MIXED/wild 分层计数(confirmed/refuted/abstained/skipped) + 良性 FP 减少量/率 + 召回从 Stage-1 到 Cascade 的变化（诚实呈现，含召回损失）。
+- ✅ 批处理脚本 `scripts/run_cascade_batch.py`（同 seed=20260718/n=50 采样，输出 `runs/cascade50.json`；数据集缺失时直接报错、不伪造）。
+- ✅ 测试：`tests/test_cascade.py` 6 passed（合成样本+依赖注入验证三态逻辑与分层计数，无 Docker/数据集可跑）；相关现有单测 47 passed/5 skipped；改动文件 ruff 干净。
+- ⚠️ **真实 50/50 分层数字尚未跑**：本 VM 缺 MalSkillBench 数据集（`datasets_external/` 不存在，红线 gitignore 不入库）。**机制仅经单测验证，未在真实样本上出数——不得据此宣称任何召回/降误报数字**。待数据集就位后跑 `run_cascade_batch.py` 补真实分层结果（即 arXiv v1 核心结果）。
+
 ### 2026-07-21 — 竞品对比 + 投稿定位调研（Devin）
 
 - ✅ 联网核实赛道拥挤度：2026-06/07 arXiv 上 agent skill 安全已成**红海**（15+ 篇，Yang Liu/Guo Wenbo/Fang Yong/Neil Gong 等顶级组领跑）。
