@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 from src.cascade.cascade import run_cascade
-from src.cascade.evaluate import cascade_metrics
+from src.cascade.evaluate import budget_curve, cascade_metrics
 from src.conformance.pipeline import verify_skill_from_code
 from src.data_ingestion.malskillbench_loader import (
     MalSkillSample,
@@ -56,7 +56,11 @@ def _run_one(sample: MalSkillSample, timeout: int, stage1_threshold: float) -> d
 
     # 候选样本在级联中已经执行过 Stage-2，直接复用结果，避免重复启动 Docker。
     if cascade.stage2_ran:
-        stage2_only_flag = cascade.stage2_decision != "allow"
+        stage2_only_decision = cascade.stage2_decision
+        stage2_only_flag = stage2_only_decision != "allow"
+        stage2_only_executed = cascade.stage2_executed
+        stage2_only_deviation = cascade.stage2_deviation
+        stage2_only_honeypot = cascade.honeypot_triggered
     else:
         baseline = verify_skill_from_code(
             skill_md_text=skill_md,
@@ -65,7 +69,11 @@ def _run_one(sample: MalSkillSample, timeout: int, stage1_threshold: float) -> d
             backend="docker",
             timeout=timeout,
         )
-        stage2_only_flag = baseline.decision != "allow"
+        stage2_only_decision = baseline.decision
+        stage2_only_flag = stage2_only_decision != "allow"
+        stage2_only_executed = baseline.executed
+        stage2_only_deviation = baseline.conformance.deviation_score
+        stage2_only_honeypot = baseline.conformance.honeypot_triggered
 
     return {
         "skill_id": sample.skill_id,
@@ -75,6 +83,10 @@ def _run_one(sample: MalSkillSample, timeout: int, stage1_threshold: float) -> d
         "stage1_risk": cascade.stage1_risk,
         "stage1_flag": cascade.stage1_flag,
         "stage2_only_flag": stage2_only_flag,
+        "stage2_only_decision": stage2_only_decision,
+        "stage2_only_executed": stage2_only_executed,
+        "stage2_only_deviation": stage2_only_deviation,
+        "stage2_only_honeypot_triggered": stage2_only_honeypot,
         "stage2_ran": cascade.stage2_ran,
         "stage2_executed": cascade.stage2_executed,
         "stage2_decision": cascade.stage2_decision,
@@ -95,7 +107,9 @@ def main() -> None:
     parser.add_argument("--timeout", type=int, default=20, help="单样本沙箱超时(秒)")
     parser.add_argument("--pool", type=int, default=400, help="候选池上限")
     parser.add_argument("--stage1-threshold", type=float, default=0.2, help="Stage-1 候选阈值")
-    parser.add_argument("--out", type=str, default="runs/cascade50.json", help="结果输出路径")
+    parser.add_argument(
+        "--out", type=str, default="runs/cascade50_nogate.json", help="结果输出路径"
+    )
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -120,10 +134,25 @@ def main() -> None:
             f"{record['skill_id'][:48]}"
         )
 
+    gate_metrics = cascade_metrics(records)
+    nogate_records = [
+        {
+            **record,
+            "stage2_ran": True,
+            "stage2_executed": record["stage2_only_executed"],
+            "stage2_outcome": "always_run",
+            "final_decision": record["stage2_only_decision"],
+            "final_flag": record["stage2_only_flag"],
+        }
+        for record in records
+    ]
     summary = {
         "config": vars(args),
         "n_total": len(records),
-        "metrics": cascade_metrics(records),
+        "metrics": gate_metrics,
+        "gate_metrics": gate_metrics,
+        "nogate_metrics": cascade_metrics(nogate_records),
+        "budget_curve": budget_curve(records),
     }
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
