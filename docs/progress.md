@@ -37,6 +37,13 @@
 - ⏭️ 下一步：Stage-1 阈值扫描；扩样本 + CI/PI/MIXED/控制面分层把"适用边界"测扎实；或弱化级联叙事、定位为"非门控运行时确认层 + 可解释取证"。
 - 🐞 环境备注（非本次改动）：`tests/test_evaluation.py::test_supplychain_guarddog_present` 在本 VM 失败（precision=0.0），根因是 clone 的 MalSkillBench `Experiment/Results/**/result.json` 文件为空（clone 时 checkout 失败所致），与 `src/cascade` 无关、不影响级联实验；要复现官方 baseline 数字需完整重新 clone 数据集。
 
+### 2026-07-21 — 方向决策与竞品复盘（Devin）
+
+- ⚠️ **战略更新**：方向 A（skill 运行时确认）与方向 B（跨 App 上下文投毒攻击发现）两条头牌均已被 2026 已发表+开源产物占据，不能再以独立新检测器叙事。
+- ✅ 可发路径是有清晰 delta 的诚实增量，目标定位为 CCF-C / SCI 中低区；新战略详见 `docs/planning/方向决策与竞品复盘_2026-07.md`。
+- ⭐ 当前推荐主攻**丙**：为 cross-app 上下文投毒做可复现防御；**甲**（独立复现 + 边界测量）作为兜底。
+- 🧰 用户资源已更新为 1 人 + AI + 8GB 4060 + DeepSeek/Kimi/Claude/Gemini 云 LLM API；待用户拍板恶意/攻击文本能否发云模型的红线及主攻路线。
+
 ### 2026-07-21 — 论文骨架重定位（方向 A，Devin）
 
 - ✅ 新增 `docs/planning/论文骨架_方向A_2026-07.md`：按用户拍板"选 B"，把系统从"级联/新检测器"重定位成 **"零误报、确定性、可解释的运行时确认层 + 适用边界诚实测量"**。
