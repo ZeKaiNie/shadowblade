@@ -134,15 +134,18 @@ def analyze(
 
     # 3) 网络行为
     network_targets: list[str] = []
-    hit_suspicious = False
+    suspicious_hits: list[str] = []
     for e in run_result.events:
         if e.behavior is BehaviorType.NETWORK:
             joined = " ".join(e.args)
             network_targets.append(joined[:120])
             for t in suspicious_targets:
                 if t in joined:
-                    hit_suspicious = True
+                    suspicious_hits.append(joined[:120])
+                    break
     result.network_targets = network_targets
+    result.suspicious_network_targets = sorted(set(suspicious_hits))
+    hit_suspicious = bool(suspicious_hits)
     if hit_suspicious:
         risk += 0.30
         result.findings.append(DynamicFinding(
