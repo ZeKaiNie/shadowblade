@@ -37,6 +37,13 @@
 - ⏭️ 下一步：Stage-1 阈值扫描；扩样本 + CI/PI/MIXED/控制面分层把"适用边界"测扎实；或弱化级联叙事、定位为"非门控运行时确认层 + 可解释取证"。
 - 🐞 环境备注（非本次改动）：`tests/test_evaluation.py::test_supplychain_guarddog_present` 在本 VM 失败（precision=0.0），根因是 clone 的 MalSkillBench `Experiment/Results/**/result.json` 文件为空（clone 时 checkout 失败所致），与 `src/cascade` 无关、不影响级联实验；要复现官方 baseline 数字需完整重新 clone 数据集。
 
+### 2026-07-21 — 论文骨架重定位（方向 A，Devin）
+
+- ✅ 新增 `docs/planning/论文骨架_方向A_2026-07.md`：按用户拍板"选 B"，把系统从"级联/新检测器"重定位成 **"零误报、确定性、可解释的运行时确认层 + 适用边界诚实测量"**。
+- 主贡献 C1–C4：C1 零误报可解释确认层；C2 对吵闹扫描器误报 100% 证伪（FPR 0.46→0）；C3 CI/PI/MIXED 分层适用边界；**C4 两个负向结论（门控降召回 + 静态分诊不省算力）当作诚实贡献**。
+- 含工作标题候选、Abstract 草稿、威胁模型、方法、实验设置、真实 Results 占位、Limitations、必引区分清单、距 arXiv v1 还缺什么（扩样本/多 seed/补 PI/方法图）。
+- 同步在 `竞品对比与投稿定位_2026-07.md` §5 加了"级联剪枝叙事已被真实数据证伪"的修正说明，避免文档内部结论冲突。
+
 ### 2026-07-21 — 竞品对比 + 投稿定位调研（Devin）
 
 - ✅ 联网核实赛道拥挤度：2026-06/07 arXiv 上 agent skill 安全已成**红海**（15+ 篇，Yang Liu/Guo Wenbo/Fang Yong/Neil Gong 等顶级组领跑）。
