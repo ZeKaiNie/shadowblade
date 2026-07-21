@@ -22,6 +22,13 @@
 
 ---
 
+### 2026-07-21 — 方向丙：cross-app 上下文投毒复现 harness v1（Devin）
+
+- ✅ 新增 `src/crossapp/`：用扁平、持久、无来源隔离的 `SharedContext` 和 `FirstPartyAPI.send_follow_up_message` 模拟 `sendFollowUpMessage`，保留 `system_prompt`（system role）与 `is_visible=False`（静默写入）两个攻击放大位。
+- ✅ 新增 `MaliciousApp` / `BenignApp` / `CrossAppSession`：按“恶意 App 写毒→良性 App 消费共享上下文→输出攻击动作”编排一次可解释会话；结果保存投毒条目来源、role、可见性和 turn 证据。
+- ✅ 新增离线 `MockInstructionFollowingLLM`：透明地服从上下文中不区分来源的祈使指令，攻击成功由 poison 被模型读取自然产生，不硬编码攻击结果；真实 API/ASR 留待下一轮。
+- ✅ 新增 `scripts/run_crossapp_demo.py` 和 `tests/test_crossapp.py`，提供有毒成功/无毒失败对照；v1 只做攻击复现，下一轮做 provenance、来源隔离、授权对齐等防御层。设计见 `docs/planning/方向丙_crossapp防御_设计_2026-07.md`。
+
 ### 2026-07-21 — 方向 A：混合级联骨架 v1（代码+单测，Devin）
 
 - ✅ **级联骨架落地**（`src/cascade/`）：Stage-1 用现有静态扫描器(`static_engine.audit_skill`, 低阈值 0.2 高召回/吵)出候选 → Stage-2 用我们零误报运行时+蜜罐一致性(`conformance.pipeline.verify_skill_from_code`)做确认/剪枝。

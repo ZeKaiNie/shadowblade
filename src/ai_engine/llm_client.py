@@ -11,12 +11,16 @@ LLM 客户端 - 统一封装本地 vLLM 与云端 API 的调用
 - API key 一律从环境变量读，**不写到 yaml 里被 commit**
 """
 import os
-import yaml
-import httpx
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
+try:
+    import httpx
+except ModuleNotFoundError:  # mock provider 离线运行时不需要 HTTP 依赖
+    httpx = None
 
 # 项目根目录（用于解析默认 settings.yaml 路径）
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -32,7 +36,7 @@ class LLMConfig:
     yaml 里的 provider 字段决定走哪条路径，这个 dataclass 是解析后的统一形式
     业务代码只跟这个对象打交道，不关心配置来源是 yaml 还是环境变量
     """
-    provider: str = "vllm"                                # vllm / mimo / deepseek
+    provider: str = "vllm"                                # vllm / mimo / deepseek / mock
     api_base: str = "http://127.0.0.1:8000/v1"            # OpenAI 兼容端点
     api_key: str = ""                                      # 本地为空字符串
     model: str = "models/qwen3-4b-awq"                    # 模型名/路径
@@ -47,7 +51,11 @@ class LLMConfig:
 
     def describe(self) -> str:
         """简短描述（用于日志、调试输出，避免泄露 api_key）"""
-        masked = "(local)" if not self.api_key else f"key=***{self.api_key[-4:] if len(self.api_key) >= 4 else '***'}"
+        masked = (
+            "(local)"
+            if not self.api_key
+            else f"key=***{self.api_key[-4:] if len(self.api_key) >= 4 else '***'}"
+        )
         return f"{self.provider}@{self.api_base} model={self.model} {masked}"
 
 
@@ -124,7 +132,17 @@ def load_llm_config(
             **common,
         )
 
-    raise ValueError(f"不支持的 LLM provider: {provider}（仅支持 vllm / mimo / deepseek）")
+    if provider == "mock":
+        # mock 只用于离线 harness 和单测，不读取 API key，也不访问网络。
+        return LLMConfig(
+            provider="mock",
+            api_base="",
+            api_key="",
+            model="deterministic-instruction-following-mock",
+            **common,
+        )
+
+    raise ValueError(f"不支持的 LLM provider: {provider}（仅支持 vllm / mimo / deepseek / mock）")
 
 
 def call_llm(
@@ -154,6 +172,17 @@ def call_llm(
         httpx.ConnectError - 端点不可达（本地 vLLM 没启动 / 云端网络断）
         httpx.HTTPStatusError - HTTP 错误（401 鉴权、429 限流等）
     """
+    if config.provider == "mock":
+        # 结构化 cross-app mock 在 src.crossapp.llm 中实现；这里保留 provider
+        # 分支，使统一配置入口能识别 mock，同时避免误把 mock 当成联网调用。
+        return (
+            "MOCK_PROVIDER_CONFIGURED: use "
+            "src.crossapp.llm.MockInstructionFollowingLLM for structured decisions."
+        )
+
+    if httpx is None:
+        raise RuntimeError("调用联网 LLM 需要安装 httpx；mock provider 不需要该依赖")
+
     if system_prompt is None:
         system_prompt = "你是一个专业的 AI Agent 安全审计分析师。请用中文回答。"
 
