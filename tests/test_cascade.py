@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.cascade.cascade import run_cascade
-from src.cascade.evaluate import cascade_metrics
+from src.cascade.evaluate import budget_curve, cascade_metrics
 
 
 def _stage2_report(decision: str, executed: bool, honeypot: bool = False):
@@ -90,6 +90,32 @@ def test_stage2_abstained_keeps_review_alert():
     assert result.final_decision == "review"
     assert result.final_flag is True
     assert result.stage2_outcome == "abstained"
+
+
+def test_non_gate_runs_stage2_even_when_stage1_does_not_flag():
+    """非门控模式不能因静态低风险而跳过运行时确认。"""
+
+    called = False
+
+    def stage2(**_kwargs):
+        nonlocal called
+        called = True
+        return _stage2_report("deny", True, True)
+
+    result = run_cascade(
+        "说明",
+        ["print('bad')"],
+        stage1_fn=lambda _markdown: SimpleNamespace(risk_score=0.1),
+        stage2_fn=stage2,
+        gate=False,
+    )
+
+    assert called is True
+    assert result.stage1_flag is False
+    assert result.stage2_ran is True
+    assert result.stage2_outcome == "always_run"
+    assert result.final_decision == "deny"
+    assert result.final_flag is True
 
 
 def test_stage1_receives_appended_code_blocks_and_stage2_arguments():
@@ -179,3 +205,43 @@ def test_cascade_metrics_baselines_and_strata():
     assert result["false_positive_reduction"]["refuted_benign_fp"] == 1
     assert result["false_positive_reduction"]["reduction_rate"] == pytest.approx(1.0)
     assert result["recall_change"]["absolute_change"] == pytest.approx(0.0)
+
+
+def test_budget_curve_uses_stage1_priority_and_matches_stage2_at_full_budget():
+    """预算为 100% 时应等于 Stage-2-only，低预算优先选高风险样本。"""
+
+    records = [
+        {
+            "label": "malicious",
+            "stage1_risk": 0.9,
+            "stage2_only_flag": True,
+        },
+        {
+            "label": "benign",
+            "stage1_risk": 0.8,
+            "stage2_only_flag": False,
+        },
+        {
+            "label": "malicious",
+            "stage1_risk": 0.2,
+            "stage2_only_flag": True,
+        },
+        {
+            "label": "benign",
+            "stage1_risk": 0.1,
+            "stage2_only_flag": False,
+        },
+    ]
+
+    result = budget_curve(records, budgets=(0.25, 1.0), n_random_trials=200)
+    low_budget = result["budgets"][0]
+    full_budget = result["budgets"][1]
+
+    assert low_budget["n_selected"] == 1
+    assert low_budget["stage1_priority"]["detected_malicious"] == 1
+    assert low_budget["stage1_priority"]["recall"] == pytest.approx(0.5)
+    assert full_budget["stage1_priority"]["recall"] == pytest.approx(1.0)
+    assert full_budget["stage1_priority"]["fpr"] == pytest.approx(0.0)
+    assert full_budget["stage1_priority"]["detected_malicious"] == 2
+    assert full_budget["random"]["recall"] == pytest.approx(1.0)
+    assert full_budget["random"]["fpr"] == pytest.approx(0.0)

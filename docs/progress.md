@@ -20,7 +20,21 @@
 
 > ⚠️ 本文件下方「M2/M3、Hermes、MiMo key、M4-M8 里程碑、检出率 100%(10/10)」等属**历史存档，已不代表当前路线**，仅留作记录，勿作为接续指引。当前主线以本节 + `docs/planning/` 为准。
 
+### 2026-07-21 — 方向丙：来源授权防御层与 mock 评测（Devin）
+
+- ✅ 新增 `src/crossapp/defense.py`：实现 `NoDefense`、`AmplificationRemoval`、`Spotlighting` 和主张的 `ProvenanceScopedAuthorization`，均返回确定性、逐条可解释的上下文裁决。
+- ✅ 新增 `src/crossapp/evaluate.py` 与 `scripts/run_crossapp_defense.py`：使用 8 个恶意组合和 2 个良性跨 App 协作合成场景，计算 ASR、过阻断率和良性可用性。
+- 📊 本轮 mock 真实结果：ASR=1.000/0.250/1.000/0.000；严格来源授权过阻断率=0.500、良性可用性=0.500，显示安全-可用性权衡，不伪造“零代价”结论。
+- 🔍 `AmplificationRemoval` 只挡 system/hidden 放大位，`Spotlighting` 在服从型 mock 下基本不挡；来源授权切断恶意跨 App 指令，但会误伤一个直接跨 App follow-up。详见 `docs/planning/方向丙_crossapp防御_设计_2026-07.md` §6。
+
 ---
+
+### 2026-07-21 — 方向丙：cross-app 上下文投毒复现 harness v1（Devin）
+
+- ✅ 新增 `src/crossapp/`：用扁平、持久、无来源隔离的 `SharedContext` 和 `FirstPartyAPI.send_follow_up_message` 模拟 `sendFollowUpMessage`，保留 `system_prompt`（system role）与 `is_visible=False`（静默写入）两个攻击放大位。
+- ✅ 新增 `MaliciousApp` / `BenignApp` / `CrossAppSession`：按“恶意 App 写毒→良性 App 消费共享上下文→输出攻击动作”编排一次可解释会话；结果保存投毒条目来源、role、可见性和 turn 证据。
+- ✅ 新增离线 `MockInstructionFollowingLLM`：透明地服从上下文中不区分来源的祈使指令，攻击成功由 poison 被模型读取自然产生，不硬编码攻击结果；真实 API/ASR 留待下一轮。
+- ✅ 新增 `scripts/run_crossapp_demo.py` 和 `tests/test_crossapp.py`，提供有毒成功/无毒失败对照；v1 只做攻击复现，下一轮做 provenance、来源隔离、授权对齐等防御层。设计见 `docs/planning/方向丙_crossapp防御_设计_2026-07.md`。
 
 ### 2026-07-21 — 方向 A：混合级联骨架 v1（代码+单测，Devin）
 
@@ -32,7 +46,24 @@
 - ✅ **真实 50/50 已跑**（官方 MalSkillBench，seed=20260718，Docker，timeout=20，S1阈值0.2）：Stage-1-only P/R/F1/FPR=0.54/0.54/0.54/**0.46**（吵）；Stage-2-only=**1.00/0.30/0.46/0.00**；Cascade=**1.00/0.18/0.31/0.00**。详见 `docs/planning/级联小批实验结果_2026-07.md`。
 - ✅ **正向**：零误报运行时层把 Stage-1 的 23 个良性误报**100% 证伪剪枝**，FPR 0.46→0.00。
 - ⚠️ **负向（如实保留）**：**门控式级联反而不如 Stage-2-only**（召回 0.30→0.18，FPR 都=0）——静态门丢弃 7 个 Stage-2 本可确认的恶意（不可恢复），另 18 个恶意在沙箱干净执行无可观测偏差。结论：**静态阶段不能当召回门**（只降召回不增收益），正当作用是算力分诊（本批 Stage-2 只跑 50 而非 100）。
-- ⏭️ 下一步：Stage-1 阈值扫描 / 改非门控级联（Stage-2 跑全部、静态只分诊）把召回拉回 0.30 且守 FPR=0；扩样本 + CI/PI/MIXED/控制面分层把"适用边界"测扎实。
+- ✅ **非门控级联已落地并跑真实批**（`run_cascade(gate=False)` + `budget_curve`）：Stage-2 跑全部、Stage-1 只分诊。**非门控 Cascade ≡ Stage-2-only**（P/R/F1/FPR=1.0/0.30/0.46/0.0），召回从门控 0.18 回到 0.30、FPR 仍 0——消除门控召回损失（代价：算力翻倍，跑全部 100 而非 50）。
+- ⚠️ **算力预算曲线诚实负向**：Stage-1 风险排序做"有限算力先跑谁"的分诊器，本批**不稳定优于随机**（10%/60%–80% 档反而更差），因静态风险分与"能否被运行时确认"相关性弱。故不宣称"静态调度省算力"，级联真贡献仍是"零误报运行时层 100% 证伪静态误报"。详见 `级联小批实验结果_2026-07.md` §7。
+- ⏭️ 下一步：Stage-1 阈值扫描；扩样本 + CI/PI/MIXED/控制面分层把"适用边界"测扎实；或弱化级联叙事、定位为"非门控运行时确认层 + 可解释取证"。
+- 🐞 环境备注（非本次改动）：`tests/test_evaluation.py::test_supplychain_guarddog_present` 在本 VM 失败（precision=0.0），根因是 clone 的 MalSkillBench `Experiment/Results/**/result.json` 文件为空（clone 时 checkout 失败所致），与 `src/cascade` 无关、不影响级联实验；要复现官方 baseline 数字需完整重新 clone 数据集。
+
+### 2026-07-21 — 方向决策与竞品复盘（Devin）
+
+- ⚠️ **战略更新**：方向 A（skill 运行时确认）与方向 B（跨 App 上下文投毒攻击发现）两条头牌均已被 2026 已发表+开源产物占据，不能再以独立新检测器叙事。
+- ✅ 可发路径是有清晰 delta 的诚实增量，目标定位为 CCF-C / SCI 中低区；新战略详见 `docs/planning/方向决策与竞品复盘_2026-07.md`。
+- ⭐ 当前推荐主攻**丙**：为 cross-app 上下文投毒做可复现防御；**甲**（独立复现 + 边界测量）作为兜底。
+- 🧰 用户资源已更新为 1 人 + AI + 8GB 4060 + DeepSeek/Kimi/Claude/Gemini 云 LLM API；待用户拍板恶意/攻击文本能否发云模型的红线及主攻路线。
+
+### 2026-07-21 — 论文骨架重定位（方向 A，Devin）
+
+- ✅ 新增 `docs/planning/论文骨架_方向A_2026-07.md`：按用户拍板"选 B"，把系统从"级联/新检测器"重定位成 **"零误报、确定性、可解释的运行时确认层 + 适用边界诚实测量"**。
+- 主贡献 C1–C4：C1 零误报可解释确认层；C2 对吵闹扫描器误报 100% 证伪（FPR 0.46→0）；C3 CI/PI/MIXED 分层适用边界；**C4 两个负向结论（门控降召回 + 静态分诊不省算力）当作诚实贡献**。
+- 含工作标题候选、Abstract 草稿、威胁模型、方法、实验设置、真实 Results 占位、Limitations、必引区分清单、距 arXiv v1 还缺什么（扩样本/多 seed/补 PI/方法图）。
+- 同步在 `竞品对比与投稿定位_2026-07.md` §5 加了"级联剪枝叙事已被真实数据证伪"的修正说明，避免文档内部结论冲突。
 
 ### 2026-07-21 — 竞品对比 + 投稿定位调研（Devin）
 
